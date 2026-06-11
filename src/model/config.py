@@ -13,9 +13,22 @@ DATA_DIR = Path.home() / "Desktop" / "Data"
 MODEL_DATA_DIR = DATA_DIR / "Model"
 DETECTION_TABLES_DIR = DATA_DIR / "detection" / "tables"
 
+def find_input(name: str) -> Path:
+    """Locate an input file anywhere under Model/ — the data dir gets
+    reorganized into subfolders (input/, output/final/, ...) between runs,
+    so a fixed level must never be assumed."""
+    direct = MODEL_DATA_DIR / name
+    if direct.exists():
+        return direct
+    hits = sorted(p for p in MODEL_DATA_DIR.rglob(name) if p.is_file())
+    if not hits:
+        raise FileNotFoundError(f"{name} not found anywhere under {MODEL_DATA_DIR}")
+    return hits[0]
+
+
 # Inputs (immutable — never overwritten)
-PU_TRAINING_PARQUET = MODEL_DATA_DIR / "provider_features_pu.parquet"          # 308,038 x 57
-SCORED_UNIVERSE_PARQUET = MODEL_DATA_DIR / "provider_features_scored.parquet"  # 617,062 x 57
+PU_TRAINING_PARQUET = find_input("provider_features_pu.parquet")          # 308,038 x 57
+SCORED_UNIVERSE_PARQUET = find_input("provider_features_scored.parquet")  # 617,062 x 57
 NPI_TO_COMPANY_MAP = DETECTION_TABLES_DIR / "npi_to_company_map.parquet"
 COMPANY_ROLLUP = DETECTION_TABLES_DIR / "company_rollup.parquet"
 
