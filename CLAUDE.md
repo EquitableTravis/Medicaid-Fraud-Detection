@@ -175,10 +175,29 @@ there). `gh` is authenticated as EquitableTravis. Local clone:
 "changes via PR" branch-protection rules; check whether the new repo needs
 the same before assuming direct pushes to main are fine.
 
+## MODEL vs ANOMALY BACKTEST (2026-06-11, `src/model/backtest_leie.py`, on main)
+Head-to-head LEIE backtest, EXACT src/backtest methodology, identical universe
+(419,342 companies scored by both; 336 fraud-relevant hits; anomaly reproduces
+its published 1.99x — harness validated). Because the model TRAINED on LEIE,
+headline rows are also computed held-out (companies containing the 462
+train-split LEIE NPIs removed → 70 never-seen hits: val-split NPIs + names):
+- **All hits: model 8.66x [CI 8.28–9.03] vs anomaly 1.99x [1.61–2.42]**
+  (model row inflated by memorization — do not quote alone).
+- **HELD-OUT: model 3.57x [CI 2.43–4.75, p=0.001] vs anomaly 1.71x
+  [0.89–2.65, p=0.052 — not significant on this subset].** Model CI excludes 1
+  and survives within billing quartiles (Q1 2.5 / Q2 1.33 / Q3 4.8 / Q4 5.0).
+**VERDICT: the supervised model beats the unsupervised score on identical
+ground, ~2x lift even on exclusions it never saw.** Outputs:
+`~/Desktop/Data/Model/backtest/` (model_backtest.json, MODEL_BACKTEST_REPORT.md).
+Caveats: held-out n=70 (wide CIs), val NPIs used for early stopping (mildly
+seen), caught-fraud ground truth. config.py inputs now resolve via
+`find_input()` rglob — Travis reorganizes Model/ subfolders (input/,
+output/final/), never hardcode a level.
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
-2. Compare model ranking vs unsupervised `company_anomaly_score` (agreement,
-   uniques each finds); consider LEIE-timing backtest like src/backtest.
-3. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
+2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
    lead carries its driving features, like the rest of the pipeline.
-4. NPPES person-name resolution for the 66 individual-NPI leads.
+3. NPPES person-name resolution for the 66 individual-NPI leads.
+4. Retrain-on-all + fresh-LEIE-download forward test (the strongest possible
+   validation: score today, check against next LEIE monthly update).
