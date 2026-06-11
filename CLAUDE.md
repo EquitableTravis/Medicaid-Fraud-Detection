@@ -194,6 +194,25 @@ seen), caught-fraud ground truth. config.py inputs now resolve via
 `find_input()` rglob — Travis reorganizes Model/ subfolders (input/,
 output/final/), never hardcode a level.
 
+## TOP-10 LEAD RESEARCH DONE (2026-06-11, report outside repo)
+Deep public-records research on the top 10 of `model_leads_CLEANED.csv` (Travis's
+cleaned 1,752-row list in `Model/output/final/`; ranks 3+6 = same operator).
+Report: **`~/Desktop/Data/Model/output/final/report/TOP10_LEAD_RESEARCH_REPORT.md`**
+(names/details stay OUT of this public repo). Result: **4 of 9 distinct
+entities corroborated by official government fraud actions** (a 10-yr state
+Medicaid termination, two AHCCCS credible-allegation-of-fraud suspensions, one
+pair of 2024 federal fraud charges whose alleged receipts match our flagged
+total exactly) — none of the 4 on LEIE, so the model found them from billing
+patterns alone. The 5 WEAK leads have identifiable FP causes: big legit
+multi-site orgs (2), geocoding/mailing-address artifact, facility-billing
+attribution to an individual attending NPI, high-base-rate segment.
+LEARNED: (a) cross-reference lead lists vs the AHCCCS suspension PDF to split
+already-caught from not-yet-caught (ad targets must be the latter);
+(b) candidate features: NPI enumeration age / operating history;
+(c) NEVER include individual-NPI leads in outreach without manual review —
+rank 7 resolved to an identifiable physician with exculpatory evidence
+(likely facility-claim attribution; check claims grain in our data).
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
 2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
