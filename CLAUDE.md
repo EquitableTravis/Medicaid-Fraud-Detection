@@ -206,12 +206,19 @@ total exactly) — none of the 4 on LEIE, so the model found them from billing
 patterns alone. The 5 WEAK leads have identifiable FP causes: big legit
 multi-site orgs (2), geocoding/mailing-address artifact, facility-billing
 attribution to an individual attending NPI, high-base-rate segment.
-LEARNED: (a) cross-reference lead lists vs the AHCCCS suspension PDF to split
-already-caught from not-yet-caught (ad targets must be the latter);
-(b) candidate features: NPI enumeration age / operating history;
-(c) NEVER include individual-NPI leads in outreach without manual review —
-rank 7 resolved to an identifiable physician with exculpatory evidence
-(likely facility-claim attribution; check claims grain in our data).
+REVISED after internal claims + feature audit: rank 7 (individual NPI)
+ESCALATED — web research's benign theory was contradicted by our claims data
+($15.9M of a single hospice per-diem code billed under the individual NPI);
+one WEAK lead's statistical signal survives scrutiny (intensity p99.5 + extreme
+yoy growth); one WEAK lead has NO ≥p99 features at all → its ~1.0 score is
+segment-driven (model profiles AZ+behavioral-health) — a model bias to fix.
+LEARNED: (a) WEAK = "no public corroboration", NEVER "cleared" — web research
+only confirms already-caught fraud; always follow with the internal signal
+audit (which features fired, code mix, velocity); (b) cross-reference lead
+lists vs the AHCCCS suspension PDF to split already-caught from not-yet-caught
+(ad targets must be the latter); (c) candidate features: NPI enumeration age /
+operating history; (d) NEVER include individual-NPI leads in outreach without
+manual review.
 
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
