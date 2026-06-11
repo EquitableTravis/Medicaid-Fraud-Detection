@@ -220,6 +220,19 @@ lists vs the AHCCCS suspension PDF to split already-caught from not-yet-caught
 operating history; (d) NEVER include individual-NPI leads in outreach without
 manual review.
 
+## PURSUIT PIPELINE (2026-06-11, `src/model/build_pursuit_pipeline.py`, on main)
+Cross-referenced all 1,752 cleaned model leads against public enforcement
+lists — AHCCCS suspensions PDF (212 NPIs/160 names, NPI + conservative
+3-token name match), Nevada Medicaid sanctions PDF (788 NPIs), federal LEIE
+(8,429 NPIs); list copies cached in `Model/enforcement_lists/` (re-pull
+monthly). Result: **55 already_caught** (46 AHCCCS NPI, 2 AHCCCS name-only,
+6 NV, 3 LEIE — incl. all 4 STRONG top-10 leads, evidence strings attached)
+and **1,697 CLEAR re-ranked as the pursuit pipeline** →
+**`Model/output/final/pursuit_pipeline.csv`** (one CSV, clear-first with
+pursuit_rank, caught rows kept at bottom with evidence). Rationale: caught =
+validation only (first-to-file); CLEAR = the qui tam / whistleblower-ad
+targets. Run from repo root: `python -m src.model.build_pursuit_pipeline`.
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
 2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
