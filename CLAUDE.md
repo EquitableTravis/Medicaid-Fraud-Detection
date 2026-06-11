@@ -233,6 +233,25 @@ pursuit_rank, caught rows kept at bottom with evidence). Rationale: caught =
 validation only (first-to-file); CLEAR = the qui tam / whistleblower-ad
 targets. Run from repo root: `python -m src.model.build_pursuit_pipeline`.
 
+## BATCH-2 LEAD RESEARCH (2026-06-11, pursuit ranks 7-16, report outside repo)
+Same protocol (web agents + mandatory internal p99 feature audit) on the next
+10 unresearched pursuit leads. Report:
+`~/Desktop/Data/Model/output/final/report/PURSUIT_BATCH2_RESEARCH_REPORT.md`.
+Verdicts: 1 STRONG (NC ABA chain — the "uncaught twin" of the publicly-audited
+cohort: ~#2-biller scale, absent from all press, quota complaints, opaque
+owners), 3 MODERATE (COVID-era CA lab w/ textbook profile; NC therapy group
+whose 8 rate features ALL fire p99 despite a clean web profile — audit
+UPGRADED it; CA FQHC look-alike w/ 30% margins + $1.26M non-clinician CEO),
+6 WEAK (mostly large legit nonprofits whose 990 revenue reconciles to billing;
+one defunct Philly provider; one segment-driven lab score with zero fired
+features). SYSTEMATIC FINDINGS: (1) **FQHC-screen gap** — 2 HRSA FQHC
+look-alikes passed the screen because OUR taxonomy extract is stale/differs
+from the live registry (their current primary tax IS 261QF0400X); fix = refresh
+NPPES or screen vs the HRSA look-alike site file (or flag instead of remove);
+(2) the internal p99 audit is now MANDATORY — it changed 3 verdicts across two
+batches; (3) single-NPI billing-scale puzzles (2 leads) need claims-grain
+verification before any outreach.
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
 2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
