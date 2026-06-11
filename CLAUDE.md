@@ -165,9 +165,15 @@ ambiguous_high_anomaly / 13 leie_positive / 1 trained-clean; 2,294 orgs + 118
 individuals ("INDIVIDUAL PROVIDER (NPI x)" names). Top leads AZ-heavy
 behavioral health. Cols incl. segment, provider_on_leie, practice_state.
 
-**GitHub branch protection (2026-06-11):** main now has "changes via PR" +
-locked-branch rules; pushes as travishub09 succeed via admin bypass. Consider
-PR workflow for future substantive changes.
+## REPO MOVED (2026-06-11): `EquitableTravis/Medicaid-Fraud-Detection` is the repo
+The repo now lives under Travis's EquitableTravis account — that is `origin`
+and the source of truth (all branches + full history mirrored). The old
+`travishub09/medicaid-fraud-detection` copy is retired (kept as the
+`travishub09` remote in the local clone for reference only — do not push
+there). `gh` is authenticated as EquitableTravis. Local clone:
+`~/Desktop/medicaid-fraud-detection`. Note: the old repo's main had
+"changes via PR" branch-protection rules; check whether the new repo needs
+the same before assuming direct pushes to main are fine.
 
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
