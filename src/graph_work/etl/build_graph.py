@@ -439,6 +439,35 @@ def stage5_leie(leie_path, lead_npis, person_name_bases, out):
     log("  (person matches are name-base only — LEADS requiring identity verification, not IDs)")
 
 
+# ---------- placeholders so 02_load's plain LOAD CSV no-ops on un-run stages ----------
+
+# Header schema for every OPTIONAL output (stages 2-5). When a stage isn't run,
+# we still emit a header-only CSV so 02_load.cypher's `LOAD CSV` finds a file and
+# loads zero rows instead of failing (plain LOAD CSV can't no-op a missing file).
+OPTIONAL_OUTPUTS = {
+    "nodes_npi_enriched.csv": ["npi", "entity_type", "org_name", "enum_date", "in_lead_set"],
+    "nodes_address.csv": ["address_id"],
+    "nodes_phone.csv": ["digits"],
+    "nodes_person.csv": ["person_id", "name_base", "tiebreaker", "ao_phone", "source"],
+    "edges_npi_address.csv": ["npi", "address_id", "rel", "suite"],
+    "edges_npi_phone.csv": ["npi", "digits", "rel"],
+    "edges_npi_person.csv": ["npi", "person_id", "rel", "title"],
+    "edges_owns.csv": ["owner_id", "owner_type", "owner_assoc_id", "owner_name", "npi", "role", "pct"],
+    "edges_associated_with.csv": ["npi", "pac_id", "enrollment_id", "name_base", "confirms_nppes_person"],
+    "flags_leie_npi.csv": ["npi", "EXCLTYPE", "EXCLDATE", "LASTNAME", "FIRSTNAME", "BUSNAME"],
+    "flags_leie_person.csv": ["name_base", "excltype", "excldate", "leie_last",
+                              "leie_first", "leie_city", "leie_state", "match_note"],
+}
+
+
+def write_missing_placeholders(out):
+    made = [name for name, cols in OPTIONAL_OUTPUTS.items()
+            if not (out / name).exists()
+            and (pd.DataFrame(columns=cols).to_csv(out / name, index=False) or True)]
+    if made:
+        log(f"\nplaceholders (header-only) for un-run stages so 02_load no-ops: {len(made)} files")
+
+
 # ---------- main ----------
 
 def main():
@@ -484,6 +513,7 @@ def main():
     if args.leie:
         stage5_leie(args.leie, lead_npis, person_name_bases, out)
 
+    write_missing_placeholders(out)
     log(f"\nDONE — all outputs in {out}")
     log("Everything produced is an investigative LEAD requiring records-level verification.")
 

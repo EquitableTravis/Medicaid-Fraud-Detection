@@ -82,6 +82,17 @@ docker run -d --name fraud-graph \
 Open http://localhost:7474 (user `neo4j`, password `fraudgraph`). The CSVs are
 now visible to `LOAD CSV FROM 'file:///<name>.csv'`.
 
+The loaders use **plain `LOAD CSV`** plus only `apoc.merge.relationship` /
+`apoc.do.when` (both in the bundled **apoc-core**) and the GDS procedures — no
+apoc-extended needed. Wait until the plugins finish registering before loading
+(the DB accepts connections a few seconds before APOC/GDS are live):
+
+```bash
+until docker exec fraud-graph cypher-shell -u neo4j -p fraudgraph \
+  "SHOW PROCEDURES YIELD name WHERE name='apoc.merge.relationship' RETURN name" \
+  | grep -q apoc; do sleep 3; done; echo "plugins ready"
+```
+
 ## 3. Run the three Cypher files **in order**
 
 In Neo4j Browser (or `cypher-shell`), run:

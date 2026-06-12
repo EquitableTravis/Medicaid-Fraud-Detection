@@ -85,6 +85,17 @@ ORDER BY n_companies DESC, total_net_paid DESC LIMIT 100;
 // (7) GDS — WEAKLY CONNECTED COMPONENTS => ranked CASE FILES.
 //     Project Company + the identity rendezvous nodes and the linking edges,
 //     run WCC, write cluster_id back, return clusters ranked by total paid.
+//
+//   PROJECTION NOTES (both 7 and 8 reuse 'leadnet'):
+//   - UNDIRECTED: every edge is emitted in BOTH directions. WCC ignores
+//     direction, but betweenness (query 8) does NOT — without the reverse edges
+//     identity nodes are sinks and betweenness collapses to ~0 on them.
+//   - HUB FILTER: identity / owner nodes shared by > 20 NPIs are dropped from
+//     the projection (graph-side analog of the ETL perimeter cap) so a single
+//     shared lockbox/switchboard/medical-plaza doesn't chain everything.
+//   - WCC still yields ONE large component (transitive chaining: A-addr-B-phone-C
+//     is inherent to WCC). The SMALL multi-company clusters are the actionable
+//     case files; for finer partitioning of the big component use gds.louvain.
 // ===========================================================================
 CALL gds.graph.drop('leadnet', false) YIELD graphName;
 CALL gds.graph.project.cypher(
@@ -96,20 +107,25 @@ CALL gds.graph.project.cypher(
    UNION MATCH (a:Address) RETURN id(a) AS id
    UNION MATCH (f:Phone) RETURN id(f) AS id
    UNION MATCH (o:Org) RETURN id(o) AS id',
-  // RELS: undirected linking edges
+  // RELS: symmetric (both directions) linking edges; identity/owner hubs > 20 dropped
   'MATCH (c:Company)-[:HAS_NPI]->(n:NPI) WHERE NOT c.whitelist_candidate RETURN id(c) AS source, id(n) AS target
-   UNION MATCH (n:NPI)-[:AUTHORIZED_BY|LOCATED_AT|MAILS_TO|HAS_PHONE|HAS_FAX]-(x) RETURN id(n) AS source, id(x) AS target
-   UNION MATCH (o)-[:OWNS]->(n:NPI) RETURN id(o) AS source, id(n) AS target
-   UNION MATCH (p:Person)-[:ASSOCIATED_WITH]->(n:NPI) RETURN id(p) AS source, id(n) AS target'
+   UNION MATCH (c:Company)-[:HAS_NPI]->(n:NPI) WHERE NOT c.whitelist_candidate RETURN id(n) AS source, id(c) AS target
+   UNION MATCH (n:NPI)-[:AUTHORIZED_BY|LOCATED_AT|MAILS_TO|HAS_PHONE|HAS_FAX]-(x) WHERE COUNT{(x)--()} <= 20 RETURN id(n) AS source, id(x) AS target
+   UNION MATCH (n:NPI)-[:AUTHORIZED_BY|LOCATED_AT|MAILS_TO|HAS_PHONE|HAS_FAX]-(x) WHERE COUNT{(x)--()} <= 20 RETURN id(x) AS source, id(n) AS target
+   UNION MATCH (o)-[:OWNS]->(n:NPI) WHERE COUNT{(o)--()} <= 20 RETURN id(o) AS source, id(n) AS target
+   UNION MATCH (o)-[:OWNS]->(n:NPI) WHERE COUNT{(o)--()} <= 20 RETURN id(n) AS source, id(o) AS target
+   UNION MATCH (p:Person)-[:ASSOCIATED_WITH]->(n:NPI) RETURN id(p) AS source, id(n) AS target
+   UNION MATCH (p:Person)-[:ASSOCIATED_WITH]->(n:NPI) RETURN id(n) AS source, id(p) AS target'
 ) YIELD graphName, nodeCount, relationshipCount;
 
 CALL gds.wcc.write('leadnet', {writeProperty: 'cluster_id'})
 YIELD componentCount, nodePropertiesWritten;
 
 // Ranked case files: multi-company clusters by total paid + how many were pre-flagged.
+// Skip the one giant component (transitive blob) to keep this list actionable.
 MATCH (c:Company) WHERE c.cluster_id IS NOT NULL
 WITH c.cluster_id AS cluster, collect(c) AS companies
-WHERE size(companies) >= 2
+WHERE size(companies) >= 2 AND size(companies) <= 50
 RETURN cluster, size(companies) AS n_companies,
        round(reduce(s = 0.0, c IN companies | s + c.company_net_paid)) AS total_net_paid,
        size([c IN companies WHERE c.flag_same_operator_family]) AS n_preflagged_same_operator,
@@ -121,8 +137,10 @@ ORDER BY total_net_paid DESC LIMIT 100;
 // (8) GDS — BETWEENNESS to surface BROKER nodes (Person/Address/Phone) that
 //     bridge otherwise-separate clusters. High betweenness on a shared identity
 //     = the operator/location stitching independent shells together.
+//     samplingSize keeps it ~seconds (exact Brandes on 200k nodes is ~5 min);
+//     raise it / drop it for an exact run. Needs the UNDIRECTED 'leadnet' above.
 // ===========================================================================
-CALL gds.betweenness.stream('leadnet') YIELD nodeId, score
+CALL gds.betweenness.stream('leadnet', {samplingSize: 1500, samplingSeed: 42}) YIELD nodeId, score
 WITH gds.util.asNode(nodeId) AS node, score
 WHERE score > 0 AND (node:Person OR node:Address OR node:Phone OR node:Org)
 RETURN labels(node) AS kind,

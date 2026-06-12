@@ -1,9 +1,11 @@
 // 02_load.cypher — RUN SECOND. Idempotent MERGE-based loaders.
 // Every CSV must sit in the Neo4j import dir (mount ~/Desktop/data/graphing there).
-// Stage 2-5 loaders use apoc.load.csv(..., {failOnError:false}) so a MISSING file
-// returns zero rows (logs a warning) instead of aborting — a Stage-1-only graph
-// still loads cleanly. APOC required. POSSIBLY_SAME_AS is built at the very end so
-// it links persons from all of stages 2-4.
+// Uses plain LOAD CSV (core Cypher) — does NOT need apoc.load.csv (which lives in
+// apoc-extended, not the bundled apoc-core). Only apoc.merge.relationship and
+// apoc.do.when are used, both in apoc-core. The ETL writes header-only placeholder
+// CSVs for any stage not run, so the Stage 2-5 loaders below no-op (zero rows)
+// instead of failing on a missing file. POSSIBLY_SAME_AS is built at the very end
+// so it links persons from all of stages 2-4.
 
 // ---------------------------------------------------------------------------
 // STAGE 1 — companies, NPIs, HAS_NPI (always present)
@@ -36,47 +38,45 @@ MERGE (c)-[h:HAS_NPI]->(n)
 SET h.merge_confidence = r.merge_confidence;   // carried so low-conf rollups can't masquerade as discovered links
 
 // ---------------------------------------------------------------------------
-// STAGE 2 — NPPES enrichment (optional)
+// STAGE 2 — NPPES enrichment (optional; header-only file => zero rows => no-op)
+// MERGE (not MATCH): this file also carries the PERIMETER NPIs (shared-identifier
+// shells not in the lead set / nodes_npi.csv) — they must be CREATED here or their
+// address/phone/person edges have nothing to attach to and widening is wasted.
 // ---------------------------------------------------------------------------
-CALL apoc.load.csv('file:///nodes_npi_enriched.csv', {failOnError:false}) YIELD map AS r
-MATCH (n:NPI {npi: r.npi})
+LOAD CSV WITH HEADERS FROM 'file:///nodes_npi_enriched.csv' AS r
+MERGE (n:NPI {npi: r.npi})
 SET n.org_name = r.org_name, n.entity_type = r.entity_type,
-    n.enum_date = r.enum_date, n.in_lead_set = (r.in_lead_set = 'True')
-RETURN count(*) AS npi_enriched;
+    n.enum_date = r.enum_date, n.in_lead_set = (r.in_lead_set = 'True');
 
-CALL apoc.load.csv('file:///nodes_address.csv', {failOnError:false}) YIELD map AS r
-MERGE (:Address {address_id: r.address_id})
-RETURN count(*) AS addresses;
+LOAD CSV WITH HEADERS FROM 'file:///nodes_address.csv' AS r
+MERGE (:Address {address_id: r.address_id});
 
-CALL apoc.load.csv('file:///nodes_phone.csv', {failOnError:false}) YIELD map AS r
-MERGE (:Phone {digits: r.digits})
-RETURN count(*) AS phones;
+LOAD CSV WITH HEADERS FROM 'file:///nodes_phone.csv' AS r
+MERGE (:Phone {digits: r.digits});
 
-CALL apoc.load.csv('file:///nodes_person.csv', {failOnError:false}) YIELD map AS r
+LOAD CSV WITH HEADERS FROM 'file:///nodes_person.csv' AS r
 MERGE (p:Person {person_id: r.person_id})
 SET p.name_base = r.name_base, p.tiebreaker = r.tiebreaker,
-    p.ao_phone = r.ao_phone, p.source = r.source
-RETURN count(*) AS persons;
+    p.ao_phone = r.ao_phone, p.source = r.source;
 
-CALL apoc.load.csv('file:///edges_npi_address.csv', {failOnError:false}) YIELD map AS r
+LOAD CSV WITH HEADERS FROM 'file:///edges_npi_address.csv' AS r
 MATCH (n:NPI {npi: r.npi}) MATCH (a:Address {address_id: r.address_id})
 CALL apoc.merge.relationship(n, r.rel, {}, {suite: r.suite}, a) YIELD rel
 RETURN count(*) AS npi_address_edges;
 
-CALL apoc.load.csv('file:///edges_npi_phone.csv', {failOnError:false}) YIELD map AS r
+LOAD CSV WITH HEADERS FROM 'file:///edges_npi_phone.csv' AS r
 MATCH (n:NPI {npi: r.npi}) MATCH (p:Phone {digits: r.digits})
 CALL apoc.merge.relationship(n, r.rel, {}, {}, p) YIELD rel
 RETURN count(*) AS npi_phone_edges;
 
-CALL apoc.load.csv('file:///edges_npi_person.csv', {failOnError:false}) YIELD map AS r
+LOAD CSV WITH HEADERS FROM 'file:///edges_npi_person.csv' AS r
 MATCH (n:NPI {npi: r.npi}) MATCH (p:Person {person_id: r.person_id})
-MERGE (p)-[a:AUTHORIZED_BY]->(n) SET a.title = r.title
-RETURN count(*) AS npi_person_edges;
+MERGE (p)-[a:AUTHORIZED_BY]->(n) SET a.title = r.title;
 
 // ---------------------------------------------------------------------------
 // STAGE 3 — ownership (optional). Owner may be Person or Org.
 // ---------------------------------------------------------------------------
-CALL apoc.load.csv('file:///edges_owns.csv', {failOnError:false}) YIELD map AS r
+LOAD CSV WITH HEADERS FROM 'file:///edges_owns.csv' AS r
 MATCH (n:NPI {npi: r.npi})
 CALL apoc.do.when(
   r.owner_type = 'Org',
@@ -90,26 +90,24 @@ RETURN count(*) AS owns_edges;
 // ---------------------------------------------------------------------------
 // STAGE 4 — PECOS associate IDs (optional) -> ASSOCIATED_WITH
 // ---------------------------------------------------------------------------
-CALL apoc.load.csv('file:///edges_associated_with.csv', {failOnError:false}) YIELD map AS r
+LOAD CSV WITH HEADERS FROM 'file:///edges_associated_with.csv' AS r
 MATCH (n:NPI {npi: r.npi})
 MERGE (pac:Person {person_id: 'PAC:' + r.pac_id})
 SET pac.pac_id = r.pac_id, pac.name_base = r.name_base, pac.source = 'pecos'
 MERGE (pac)-[a:ASSOCIATED_WITH]->(n)
-SET a.enrollment_id = r.enrollment_id, a.confirms_nppes_person = (r.confirms_nppes_person = 'True')
-RETURN count(*) AS associated_edges;
+SET a.enrollment_id = r.enrollment_id, a.confirms_nppes_person = (r.confirms_nppes_person = 'True');
 
 // ---------------------------------------------------------------------------
 // STAGE 5 — LEIE flags (optional)
 // ---------------------------------------------------------------------------
-CALL apoc.load.csv('file:///flags_leie_npi.csv', {failOnError:false}) YIELD map AS r
+LOAD CSV WITH HEADERS FROM 'file:///flags_leie_npi.csv' AS r
 MATCH (n:NPI {npi: r.npi})
-SET n.leie_excluded = true, n.leie_excltype = r.EXCLTYPE, n.leie_excldate = r.EXCLDATE
-RETURN count(*) AS leie_npi_flags;
+SET n.leie_excluded = true, n.leie_excltype = r.EXCLTYPE, n.leie_excldate = r.EXCLDATE;
 
-CALL apoc.load.csv('file:///flags_leie_person.csv', {failOnError:false}) YIELD map AS r
+LOAD CSV WITH HEADERS FROM 'file:///flags_leie_person.csv' AS r
 MATCH (p:Person {name_base: r.name_base})
-SET p.leie_name_lead = true, p.leie_excltype = r.excltype, p.leie_excldate = r.excldate
-RETURN count(*) AS leie_person_leads;   // NAME-ONLY LEADS — verify identity before use
+SET p.leie_name_lead = true, p.leie_excltype = r.excltype, p.leie_excldate = r.excldate;
+// flags_leie_person rows are NAME-ONLY LEADS — verify identity before use.
 
 // ---------------------------------------------------------------------------
 // FINALIZE — POSSIBLY_SAME_AS between persons sharing a name_base but distinct
