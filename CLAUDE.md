@@ -290,6 +290,24 @@ Touch Home Care (4, 3 pre-flagged), Pinnacle Treatment Centers (8, 7 pre-flagged
 To view: `docker start fraud-graph` then http://localhost:7474 (neo4j/fraudgraph),
 paste queries from cypher/03_leads.cypher. Container name `fraud-graph`.
 
+**FULL GRAPH FINDINGS (2026-06-12):** all 8 lead queries + ABA deep-dive run;
+report at `~/Desktop/Data/Model/output/final/report/GRAPH_FINDINGS_REPORT.md`
+(raw outputs: `~/Desktop/data/graphing/_q_results.txt`). KEY: (1) top "shell"
+signals are mostly PE ROLL-UPS the model flagged as separate companies — Aveanna
+family (7 leads, $1.86B, BUCKHALTER=Aveanna exec), DaVita renal, BrightSpring;
+treat corporate families as single review units + whitelist public-co identity
+nodes. (2) Actionable small clusters: Pinnacle Treatment ×8 ($315M, 7 pre-flag),
+Personal Touch ×4 ($839M), Health Acquisition+Pyramid fax pair ($1.06B, unflagged),
+DC-area 6-co cluster. (3) ABA: Apogee AZ name-variant triplet (sibling bills $1.7M
+@ model 0.998, below company bar — sub-threshold fragmentation pattern); Step Ahead
+9 state LLCs created in 2 weeks; Highlights HQ hosts GA/VA expansion entities +
+multi-state Empyrean Hospice (dossier addendum). (4) LEIE 2-hop person matches =
+common-name noise (name-only matching); 3 direct-excluded leads consistent with
+pursuit pipeline. (5) Top betweenness brokers via PECOS = national chains
+(Walgreens/DaVita/Lincare — PAC org names not stored, ETL TODO); via NPPES-AO =
+COMBS/HEINE/SWEETEN/FULLER/PETERS/PAI/BLIATOUT(=HALO CEO, corroborates batch-2)/
+DRAKE — unresearched broker names are the next research batch.
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
 2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
