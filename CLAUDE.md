@@ -252,6 +252,27 @@ NPPES or screen vs the HRSA look-alike site file (or flag instead of remove);
 batches; (3) single-NPI billing-scale puzzles (2 leads) need claims-grain
 verification before any outreach.
 
+## GRAPH PIPELINE (2026-06-12, `src/graph_work/`, on main)
+Neo4j fraud-lead graph: shared-identifier links (authorized official / address /
+phone / fax / owner / excluded person) across the 1,752 entity-resolved leads so
+one-operator shells surface as connected subgraphs. LEADS, not conclusions.
+- `etl/build_graph.py` 5 stages, CLI `python -m src.graph_work.etl.build_graph
+  --leads <model_leads_CLEANED.csv> --nppes --owners <glob> --pecos --leie --out
+  ~/Desktop/data/graphing [--no-widen]`. Stage 1 runs on --leads alone.
+- `cypher/01_schema|02_load|03_leads.cypher` + README (Docker Neo4j+GDS+APOC).
+- Outputs to `~/Desktop/data/graphing` (HIPAA, outside repo); only code committed.
+KEY DESIGN NOTES (learned from real runs): (1) Stage-1 spine = exactly 1,752
+companies / 17,805 NPI edges. (2) NPPES streamed in 200k chunks; perimeter widen
+MUST be capped — unbounded it pulled 7.7M NPIs (shared infra); MAX_PERIMETER_PER_KEY=15
++ person-widen-needs-phone-tiebreaker -> 62,326 perimeter NPIs. (3) owner files key
+on ENROLLMENT ID, NOT NPI — Stage 3 bridges owner->NPI via PECOS ENRLMT_ID. (4)
+`_clean()` rejects literal 'nan' (dtype=str+NaN) or empty NPPES fields form bogus
+rendezvous hubs. (5) reads use encoding_errors='replace' (PECOS has 0xa0 bytes).
+FIRST RESULT: top shared authorized official = BUCKHALTER|MATTHEW across 15
+distinct non-whitelist companies (shell-operator signal). whitelist_candidate (55
+mega/govt/hospital orgs) excluded from lead queries. NOT YET RUN: the Neo4j load +
+03_leads queries (needs Docker Neo4j w/ GDS+APOC per README).
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
 2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
