@@ -271,13 +271,24 @@ rendezvous hubs. (5) reads use encoding_errors='replace' (PECOS has 0xa0 bytes).
 FIRST RESULT: top shared authorized official = BUCKHALTER|MATTHEW across 15
 distinct non-whitelist companies (shell-operator signal). whitelist_candidate (55
 mega/govt/hospital orgs) excluded from lead queries.
-DEBUG PASS (2026-06-12) fixed 4 real bugs vs the README: (1) org_name was 'nan'
-for all 42,060 individual NPIs ('NaN or fallback' returns NaN since NaN is truthy)
--> _clean + p_last/p_first fallback; (2) perimeter used isin(dict); (3) Cypher
-'no-op if file absent' was false (apoc.load.csv throws) -> {failOnError:false} on
-all stage 2-5 loaders; (4) POSSIBLY_SAME_AS ran before owner/PECOS persons existed
--> moved to end + empty-name guard. Re-ran clean. NOT YET RUN: the Neo4j load +
-03_leads queries (needs Docker Neo4j w/ GDS+APOC per README).
+DEBUG PASS 1 (code review, 2026-06-12): org_name 'nan' for 42,060 individuals
+(NaN is truthy) -> _clean+fallback; perimeter isin(dict); POSSIBLY_SAME_AS ran
+before owner/PECOS persons -> moved to end + empty-name guard.
+DEBUG PASS 2 (LIVE-TESTED in Docker Neo4j 5.26 + GDS + APOC, 2026-06-12 — graph
+fully loads & all 8 lead queries run): (1) apoc.load.csv is apoc-EXTENDED not the
+bundled core -> rewrote loaders as plain LOAD CSV + ETL writes header-only
+placeholders so missing-stage loads no-op; (2) perimeter NPI nodes were never
+created (enriched loader used MATCH; nodes_npi.csv has only lead NPIs) -> MERGE,
+npi-address edges 35,608->157,850; (3) betweenness returned nothing (directed
+projection makes identity nodes sinks) -> symmetric/undirected projection +
+samplingSize (4m43s->6s); (4) WCC 550-co/$45B hairball -> hub-degree filter (>20
+dropped) + case-files capped <=50. GRAPH CENSUS: 78,926 NPI / 67,182 phone /
+43,984 address / 13,507 person / 1,752 company / 235 org; 16,684 POSSIBLY_SAME_AS.
+RESULTS: validation reconnects 75 same-operator pairs via person / 74 address / 50
+phone; top operator BUCKHALTER|MATTHEW = 15 companies $3.2B; case files = Personal
+Touch Home Care (4, 3 pre-flagged), Pinnacle Treatment Centers (8, 7 pre-flagged).
+To view: `docker start fraud-graph` then http://localhost:7474 (neo4j/fraudgraph),
+paste queries from cypher/03_leads.cypher. Container name `fraud-graph`.
 
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
