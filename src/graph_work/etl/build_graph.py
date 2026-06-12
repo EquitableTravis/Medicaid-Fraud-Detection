@@ -265,7 +265,7 @@ def stage2_nppes(nppes_path, lead_npis, out, widen=True):
         key_count, cand_rows, cand_keys = {}, {}, {}
         for ch in pd.read_csv(nppes_path, usecols=cols, chunksize=CHUNK, **READ):
             ch = ch.rename(columns=NPPES_USE)
-            ch = ch[~ch["npi"].isin(keep)]
+            ch = ch[~ch["npi"].isin(lead_npis)]  # exclude all lead NPIs (set, not the keep dict)
             for row in ch.itertuples(index=False):
                 a, p, person = _nppes_keys(row)
                 matched = [x[1] for x in a if x[1] in key_addr]
@@ -293,10 +293,14 @@ def stage2_nppes(nppes_path, lead_npis, out, widen=True):
     npi_rows, e_addr, e_phone, e_person = [], [], [], []
     addr_nodes, phone_nodes, person_nodes = {}, {}, {}
     for npi, row in allrows.items():
+        # org_name falls back to the person name for individuals; _clean() so a
+        # missing org_name (NaN, truthy!) doesn't block the fallback or write "nan".
+        name = _clean(row.org_name) or " ".join(
+            x for x in (_clean(row.p_last), _clean(row.p_first)) if x)
         npi_rows.append({
-            "npi": npi, "entity_type": row.entity_type,
-            "org_name": row.org_name or f"{row.p_last} {row.p_first}".strip(),
-            "enum_date": row.enum_date, "in_lead_set": npi in lead_npis})
+            "npi": npi, "entity_type": _clean(row.entity_type),
+            "org_name": name, "enum_date": _clean(row.enum_date),
+            "in_lead_set": npi in lead_npis})
         a, p, person = _nppes_keys(row)
         for rel, aid, suite in a:
             addr_nodes[aid] = aid
