@@ -270,7 +270,13 @@ on ENROLLMENT ID, NOT NPI — Stage 3 bridges owner->NPI via PECOS ENRLMT_ID. (4
 rendezvous hubs. (5) reads use encoding_errors='replace' (PECOS has 0xa0 bytes).
 FIRST RESULT: top shared authorized official = BUCKHALTER|MATTHEW across 15
 distinct non-whitelist companies (shell-operator signal). whitelist_candidate (55
-mega/govt/hospital orgs) excluded from lead queries. NOT YET RUN: the Neo4j load +
+mega/govt/hospital orgs) excluded from lead queries.
+DEBUG PASS (2026-06-12) fixed 4 real bugs vs the README: (1) org_name was 'nan'
+for all 42,060 individual NPIs ('NaN or fallback' returns NaN since NaN is truthy)
+-> _clean + p_last/p_first fallback; (2) perimeter used isin(dict); (3) Cypher
+'no-op if file absent' was false (apoc.load.csv throws) -> {failOnError:false} on
+all stage 2-5 loaders; (4) POSSIBLY_SAME_AS ran before owner/PECOS persons existed
+-> moved to end + empty-name guard. Re-ran clean. NOT YET RUN: the Neo4j load +
 03_leads queries (needs Docker Neo4j w/ GDS+APOC per README).
 
 ## Next steps (not started)
