@@ -25,6 +25,13 @@ pass also keeps any NPI that *shares* a normalized address, phone, fax, or
 authorized-official key with the lead set — the one-hop ring where hidden shells
 surface. Disable with `--no-widen`.
 
+The ring is **bounded** (`MAX_PERIMETER_PER_KEY`, default 15): a key shared by
+more than that many outside NPIs is shared *infrastructure* (billing service,
+office tower, hospital switchboard, common name) and contributes no perimeter
+nodes — without this cap the ring balloons to millions of NPIs. Person-key
+widening is further restricted to names that carry a phone tiebreaker (bare
+names like `SMITH|JOHN` are too generic to widen on).
+
 **Correctness guards baked in:**
 - Phones → digits only, strip leading `1`, reject non-10-digit.
 - Addresses → suite split OUT into an edge property so `STE 104` / `SUITE 104` /

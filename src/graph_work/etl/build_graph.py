@@ -41,6 +41,15 @@ from pathlib import Path
 import pandas as pd
 
 CHUNK = 200_000
+# Perimeter widening cap: a rendezvous key (building/phone/person) shared by more
+# than this many NON-lead NPIs is shared INFRASTRUCTURE (billing service, office
+# tower, hospital switchboard, common name), not a shell ring — it contributes no
+# perimeter nodes. Keeps the one-hop ring to genuine small-overlap identifiers.
+MAX_PERIMETER_PER_KEY = 15
+
+# pandas read kwargs tolerant of the latin-1/CP1252 bytes (0xa0 etc.) these CMS
+# extracts contain; reference files are read-only.
+READ = dict(dtype=str, on_bad_lines="skip", encoding="utf-8", encoding_errors="replace")
 
 # ---------- logging ----------
 
@@ -67,9 +76,16 @@ _NONWORD = re.compile(r"[^A-Z0-9 ]+")
 _WS = re.compile(r"\s+")
 
 
+def _clean(v):
+    """Empty string for missing values — incl. the literal 'nan'/'none' that
+    dtype=str + NaN produces (else they become bogus rendezvous keys)."""
+    s = str(v).strip() if v is not None else ""
+    return "" if s.lower() in ("", "nan", "none") else s
+
+
 def norm_phone(v):
     """Digits only, strip a leading US '1', require exactly 10 digits."""
-    d = re.sub(r"\D", "", str(v or ""))
+    d = re.sub(r"\D", "", _clean(v))
     if len(d) == 11 and d.startswith("1"):
         d = d[1:]
     return d if len(d) == 10 else ""
@@ -82,15 +98,15 @@ def _std_tokens(s):
 def norm_address(line1, line2, city, state, postal):
     """Returns (address_id, suite). suite is split OUT so 'STE 104' / 'SUITE 104'
     / no-suite all merge on the same building key = street|city|state|zip5."""
-    raw = f"{line1 or ''} {line2 or ''}".upper()
+    raw = f"{_clean(line1)} {_clean(line2)}".upper()
     raw = _NONWORD.sub(" ", raw)
     suites = _UNIT_RE.findall(raw)
     suite = suites[0][1] if suites else ""
     street = _UNIT_RE.sub(" ", raw)
     street = _WS.sub(" ", _std_tokens(street)).strip()
-    city_n = _WS.sub(" ", _NONWORD.sub(" ", str(city or "").upper())).strip()
-    state_n = str(state or "").upper().strip()[:2]
-    zip5 = re.sub(r"\D", "", str(postal or ""))[:5]
+    city_n = _WS.sub(" ", _NONWORD.sub(" ", _clean(city).upper())).strip()
+    state_n = _clean(state).upper()[:2]
+    zip5 = re.sub(r"\D", "", _clean(postal))[:5]
     if not (street and zip5):
         return "", suite
     return f"{street}|{city_n}|{state_n}|{zip5}", suite
@@ -100,15 +116,15 @@ def norm_name_base(last, first):
     """Conservative person key root: LAST|FIRST, alnum-uppercase. Tiebreakers
     are added by the caller (PECOS/owner associate id > auth-official phone >
     middle initial) — same base + different tiebreaker => DISTINCT nodes."""
-    last_n = _NONWORD.sub("", str(last or "").upper()).strip()
-    first_n = _NONWORD.sub("", str(first or "").upper()).strip()
+    last_n = _NONWORD.sub("", _clean(last).upper()).strip()
+    first_n = _NONWORD.sub("", _clean(first).upper()).strip()
     if not (last_n and first_n):
         return ""
     return f"{last_n}|{first_n}"
 
 
 def org_key(name):
-    return _WS.sub(" ", _NONWORD.sub(" ", str(name or "").upper())).strip()
+    return _WS.sub(" ", _NONWORD.sub(" ", _clean(name).upper())).strip()
 
 
 # ---------- Stage 1 ----------
@@ -212,8 +228,8 @@ def _nppes_keys(row):
     base = norm_name_base(row.ao_last, row.ao_first)
     if base:
         ao_ph = norm_phone(row.ao_phone)
-        tb = ao_ph or (str(row.ao_mid or "").strip().upper()[:1])
-        person = (base, tb, str(row.ao_title or "").strip(), ao_ph)
+        tb = ao_ph or _clean(row.ao_mid).upper()[:1]
+        person = (base, tb, _clean(row.ao_title), ao_ph)
     return addrs, phones, person
 
 
@@ -222,10 +238,11 @@ def stage2_nppes(nppes_path, lead_npis, out, widen=True):
     cols = list(NPPES_USE)
 
     # Pass A: keep my NPIs; collect their rendezvous keys for perimeter.
+    # Person widen keys are ONLY name_bases carrying a phone tiebreaker (bare
+    # names like SMITH|JOHN are too generic to widen on).
     keep, key_addr, key_phone, key_person = {}, set(), set(), set()
     n_seen = 0
-    for ch in pd.read_csv(nppes_path, usecols=cols, dtype=str, chunksize=CHUNK,
-                          on_bad_lines="skip"):
+    for ch in pd.read_csv(nppes_path, usecols=cols, chunksize=CHUNK, **READ):
         n_seen += len(ch)
         ch = ch.rename(columns=NPPES_USE)
         sub = ch[ch["npi"].isin(lead_npis)]
@@ -234,7 +251,7 @@ def stage2_nppes(nppes_path, lead_npis, out, widen=True):
             a, p, person = _nppes_keys(row)
             key_addr.update(x[1] for x in a)
             key_phone.update(x[1] for x in p)
-            if person:
+            if person and person[3]:  # person[3] = AO phone (the tiebreaker)
                 key_person.add(person[0])
         if n_seen % (CHUNK * 10) == 0:
             log(f"    pass A … {n_seen:,} rows scanned, {len(keep):,} lead NPIs found")
@@ -242,16 +259,33 @@ def stage2_nppes(nppes_path, lead_npis, out, widen=True):
 
     perimeter = {}
     if widen:
-        for ch in pd.read_csv(nppes_path, usecols=cols, dtype=str, chunksize=CHUNK,
-                              on_bad_lines="skip"):
+        # Bounded one-hop ring: count how many non-lead NPIs each shared key pulls,
+        # store rows only while a key stays under the cap, then keep a perimeter NPI
+        # only if it still has >=1 surviving (rare) shared key.
+        key_count, cand_rows, cand_keys = {}, {}, {}
+        for ch in pd.read_csv(nppes_path, usecols=cols, chunksize=CHUNK, **READ):
             ch = ch.rename(columns=NPPES_USE)
             ch = ch[~ch["npi"].isin(keep)]
             for row in ch.itertuples(index=False):
                 a, p, person = _nppes_keys(row)
-                if (any(x[1] in key_addr for x in a) or any(x[1] in key_phone for x in p)
-                        or (person and person[0] in key_person)):
-                    perimeter[row.npi] = row
-        log(f"  perimeter widen: +{len(perimeter):,} shared-identifier NPIs")
+                matched = [x[1] for x in a if x[1] in key_addr]
+                matched += [x[1] for x in p if x[1] in key_phone]
+                if person and person[0] in key_person:
+                    matched.append("PERSON:" + person[0])
+                kept_any = False
+                for k in matched:
+                    key_count[k] = key_count.get(k, 0) + 1
+                    if key_count[k] <= MAX_PERIMETER_PER_KEY:
+                        cand_keys.setdefault(row.npi, set()).add(k)
+                        kept_any = True
+                if kept_any:
+                    cand_rows[row.npi] = row
+        infra = {k for k, c in key_count.items() if c > MAX_PERIMETER_PER_KEY}
+        for npi, keys in cand_keys.items():
+            if keys - infra:  # at least one rare shared key survives
+                perimeter[npi] = cand_rows[npi]
+        log(f"  perimeter widen (cap {MAX_PERIMETER_PER_KEY}/key): +{len(perimeter):,} "
+            f"shared-identifier NPIs ({len(infra):,} infra keys dropped)")
 
     allrows = {**keep, **perimeter}
 
@@ -303,7 +337,7 @@ def load_pecos(pecos_path, lead_npis):
     """PECOS bridges owner-file ENROLLMENT IDs to NPIs and gives a high-confidence
     person key (PECOS_ASCT_CNTL_ID). Returns (enroll->npi map, assoc rows)."""
     enroll_to_npi, assoc = {}, []
-    for ch in pd.read_csv(pecos_path, dtype=str, chunksize=CHUNK, on_bad_lines="skip"):
+    for ch in pd.read_csv(pecos_path, chunksize=CHUNK, **READ):
         ch = ch.fillna("")
         sub = ch[ch["NPI"].isin(lead_npis)]
         for r in sub.itertuples(index=False):
@@ -329,7 +363,7 @@ def stage3_owners(owner_globs, enroll_to_npi, out):
                 "ORGANIZATION NAME - OWNER", "PERCENTAGE OWNERSHIP"}
     owns = []
     for f in files:
-        df = pd.read_csv(f, dtype=str, on_bad_lines="skip").fillna("")
+        df = pd.read_csv(f, **READ).fillna("")
         missing = expected - set(df.columns)
         if missing:
             log(f"  COLUMN MISMATCH in {Path(f).name}")
@@ -378,7 +412,7 @@ def stage4_pecos(assoc, person_name_bases, out):
 
 def stage5_leie(leie_path, lead_npis, person_name_bases, out):
     stage(5, "LEIE — excluded NPIs + excluded persons (name_base LEADS)")
-    df = pd.read_csv(leie_path, dtype=str).fillna("")
+    df = pd.read_csv(leie_path, **READ).fillna("")
     df["NPI"] = df["NPI"].str.strip()
     npi_hits = df[df["NPI"].isin(lead_npis) & df["NPI"].str.fullmatch(r"\d{10}")]
     npi_hits[["NPI", "EXCLTYPE", "EXCLDATE", "LASTNAME", "FIRSTNAME", "BUSNAME"]].rename(
