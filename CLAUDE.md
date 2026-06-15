@@ -388,6 +388,37 @@ independent methods (GNN message-passing + tree features) now agree: no NPI-grai
 structural fraud signal** (fraudsters under-connected); shell-ring signal lives at COMPANY
 grain. Production model unchanged; reusable harness kept for a possible company-grain model.
 
+## LABELS TRACK (2026-06-15, `labels/` + `src/model/train_fraud.py`, MERGED to main)
+Attacked the model's real bottleneck — only 578 LEIE positives, ~151 of them non-fraud
+(license/loan). Built an expanded **`fraud_positive`** label (889) = fraud-relevant LEIE
+(EXCLTYPE a1/a2/a3/b1/b2/b3/b7, 420) ∪ AHCCCS suspensions (191, 189 net-new) ∪ NV sanctions
+(331, 274 net-new), each with an exclusion year for the temporal split (`labels/build_labels.py`
+→ `Model/labels/expanded_labels.parquet`). Reuses the pursuit-pipeline AHCCCS/NV parsers.
+
+**The metric win is real.** Head-to-head on the identical temporal split, common eval target,
+3 seeds, same HP — only the training label varies (`labels/train_eval_labels.py`): all-LEIE
+(current) val PR-AUC **0.317** [0.04–0.51, one seed collapses]; expanded **0.573** [0.56–0.58,
+stable]. Survives the bias check (pure-LEIE-fraud target, no shared positives: 0.427 vs 0.248).
+Expansion (not cleaning) drives it; it also kills the ~250-positive seed fragility.
+`labels/VERDICT.md`.
+
+**Productionized + gated per `Production_Retrain_Plan.pdf`** (`src/model/train_fraud.py` — ONE-
+variable change from `train.py`: label only; `train.py`/`score.py` left byte-identical as the
+runnable fallback; frame rebuilt from the full universe since 371/889 positives sit outside the
+PU frame; negatives = confident-clean + **company-disjoint** from positives). GATE 0 leak checks
+clean (`labels/VERIFY.md`); GATE 2 reproduces through the production path (val 0.574 / test 0.550).
+
+**But GATE 4 says DO NOT cut over the leads** (`labels/LEAD_DIFF.md`). Controlled lead diff
+(`labels/build_leads_fraud.py`, reuses the chain verbatim): 592 newly-surfaced, 605 dropped,
+0 confirmed catches lost. Added 3 institutional screens (`screen_institutional_extra`: school
+districts via LEA taxonomy 251300000X, tribal-by-name, academic/safety-net) → +55 FP removals.
+**Unbiased re-judge of a random 30 new leads: 1 weak fraud-candidate, 16 legitimate institutions
+(Albany Medical College, Tulalip Tribes, LA Free Clinic, DaVita JV, AbleNet, state-run DHS...),
+13 inconclusive.** The 42 billing features can't separate legitimate from fraudulent providers
+that share a billing shape — same lesson as the GNN/graph tracks, one level up. Production scorer
++ advertising leads UNCHANGED; `fraud_positive` model + `leads_new` kept under
+`Model/fraud_positive/`, not promoted. The 3 new institutional screens are a keeper regardless.
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
 2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
