@@ -33,3 +33,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# GNN training-track venv (Python 3.11; not committed)
+.venv-gnn/
