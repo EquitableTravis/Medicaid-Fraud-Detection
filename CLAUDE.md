@@ -353,8 +353,20 @@ ablation is the real test). `split_masks.parquet`. Features: **X_num (617062,47)
 = 39 billing + 8 graph (provider_age, per-type degree, component size); median-
 impute+standardize fit on TRAIN only, ±5 clip, no NaN/inf. X_cat (617062,3) vocab
 {entity:3, taxonomy:772, state:84}. `X_num.npy`/`X_cat.npy`/`features_meta.json`.
-NEXT (paused for go-ahead): Phase 6 FraudSAGE model → Phase 7 training (≥3 seeds,
-PR-AUC, NeighborLoader).
+**GATE 6+7** (`model.py`, `train.py`): inductive FraudSAGE (numeric + entity/
+taxonomy/state embeddings → N×SAGEConv → logit/node), focal loss. Switched
+NeighborLoader→FULL-BATCH (pyg-lib/torch-sparse no wheels for torch 2.12; graph
+fits in memory, exact). HP-parameterized for tuning (--tag avoids clobber).
+**KEY FINDING — GNN underperforms.** GNN val PR-AUC ~0.10-0.15, BELOW the no-graph
+HistGBM on the SAME temporal split (**0.195**). The original LightGBM **0.465 was a
+RANDOM-split mirage** — the honest temporal bar is ~0.20 for ANY model. Graph adds
+no NPI-level fraud signal: fraudsters are LESS connected (58.5%) than clean
+negatives (70.8%), so message passing OVER-SMOOTHS positives toward clean
+neighbors (active harm, not just neutral). The shell-ring signal lives at COMPANY
+grain, not NPI grain. Defensible negative result (plan: "ship the simpler model").
+NEXT: regularization pass (--tag _reg, hidden32/dropout0.5/1layer/wd0.01) to try to
+match 0.195, then Phase 8 head-to-head + leakage ablation + precision@K (the
+use-case metric). Likely outcome: keep LightGBM; consider company-grain GNN later.
 
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
