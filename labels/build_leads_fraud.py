@@ -34,6 +34,31 @@ from src.attempt_2.leads.build_final_leads import classify, normalize, taxonomy_
 
 LABELS = config.MODEL_DATA_DIR / "labels" / "expanded_labels.parquet"
 
+# GATE-4 hardening: three institutional categories the expanded label pushed into the
+# top ranks that the production keyword screens miss (school districts, tribal-government
+# health, academic/safety-net faculty groups). Supplements build_final_leads.classify;
+# the production screen is left untouched.
+LEA_TAX = {"251300000X"}                       # Local Education Agency (school district)
+SCHOOL_NAMES = ["SCHOOL DISTRICT", " ISD", "ISD ", "UNIFIED SCHOOL", "PUBLIC SCHOOL",
+                "BOARD OF EDUCATION", "COMMUNITY SCHOOL", "CHARTER SCHOOL", "SCHOOL CORP",
+                "INDEPENDENT SCHOOL", "COUNTY SCHOOLS", "AREA SCHOOLS", "CITY SCHOOLS"]
+TRIBAL_EXTRA = ["INDIAN COMMUNITY", "INDIAN TRIBE", "INDIAN NATION", "INDIAN RESERVATION",
+                "TOHONO", "NAVAJO", "APACHE", "GILA RIVER", "INTER TRIBAL"]
+ACADEMIC_EXTRA = ["FACULTY", "FACULTY PHYSICIANS", "FACULTY PRACTICE", "MEDICAL FACULTY",
+                  "DISTRICT MEDICAL GROUP", "UNIVERSITY PHYSICIANS", "ACADEMIC"]
+
+
+def screen_institutional_extra(norm_name, tax):
+    """Supplementary institutional screen (returns (category, match) or (None, None))."""
+    if tax in LEA_TAX:
+        return "school_taxonomy", tax
+    for cat, kws in (("school_name", SCHOOL_NAMES), ("tribal_extra", TRIBAL_EXTRA),
+                     ("academic_safetynet", ACADEMIC_EXTRA)):
+        for kw in kws:
+            if kw.strip() in norm_name:
+                return cat, kw.strip()
+    return None, None
+
 
 def score_universe(model_path, fl_path):
     booster = lgb.Booster(model_file=str(model_path))
@@ -61,7 +86,11 @@ def screen(leads, prov):
     leads = leads.copy(); leads["specialty"] = spec
     cats, toks = [], []
     for nm, sp in zip(leads["company_name"], leads["specialty"]):
-        c, t = classify(normalize(nm), taxonomy_code(sp)); cats.append(c); toks.append(t)
+        nn, tx = normalize(nm), taxonomy_code(sp)
+        c, t = classify(nn, tx)                       # production screens first
+        if c is None:                                 # then the GATE-4 supplementary screens
+            c, t = screen_institutional_extra(nn, tx)
+        cats.append(c); toks.append(t)
     removed = pd.Series([c is not None for c in cats], index=leads.index)
     kept = leads.loc[~removed].copy()
     audit = leads.loc[removed].copy()

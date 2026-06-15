@@ -87,3 +87,41 @@ discriminating signal that the features don't contain.
 What does NOT change either way: the temporal PR-AUC result (0.55, GATE 2) and the leak
 verification (GATE 0) stand. The label is a better *training target*; it is just not, by itself,
 a better *lead generator* without the screen fixes and a fair re-adjudication.
+
+---
+
+## Phase 4b — after hardening the screens + an unbiased re-judge (the decision)
+
+Per the chosen path (A): added the three institutional screens and re-adjudicated a **random**
+sample (not the FP-seeded top).
+
+**Screen hardening (`screen_institutional_extra` in `build_leads_fraud.py`, production
+`classify` untouched):** removed **+55** institutional leads the keyword screens missed —
+42 school districts via LEA taxonomy `251300000X`, plus academic/safety-net and tribal-by-name.
+Screened leads 4,020 → 3,965; newly-surfaced 592 → 581.
+
+**Random 30 newly-surfaced leads, adjudicated by web research (`random30_sample.csv`):**
+
+| verdict | count | examples |
+|---|---|---|
+| fraud-candidate | **1** | Regency Home Healthcare (MN) — and only a KARE-11 *journalism* allegation, no charges |
+| established-legit / institutional | **16** | Albany Medical College, Tulalip Tribes, LA Free Clinic (Saban), DaVita dialysis JV, AbleNet, Connect Hearing, Services for the UnderServed, Southwest Behavioral Health, MN DHS Wadena (state-run), Pine Street Inn |
+| inconclusive (small, no public footprint) | **13** | opaque LLCs with no web/enforcement signal either way |
+
+**Read:** 1/30 shows even a weak fraud signal; **>50% are clearly legitimate institutions**;
+the rest are unknowable from public signal. After a fair re-judge, the newly-surfaced leads are
+**not better** than the current list — they trade generic high-billers for large legitimate
+behavioral-health / home-care / supported-living organizations in the fraud-heavy taxonomies.
+
+## Final recommendation — DO NOT cut over the production lead list
+
+Completing path A produced the evidence to decide, and it says hold. Keep the current model as
+the lead generator. The expanded-label work is kept as a **documented, reproducible finding**:
+the label genuinely improves the temporal metric (0.55) and the leak checks are clean, but on an
+honest re-judge it does not generate better advertising leads, because the 42 billing features
+cannot separate legitimate from fraudulent providers that share the same billing shape.
+
+Worth keeping for later: (1) the three new institutional screens are a real improvement and could
+be folded into the production screen regardless; (2) the fraud_positive model still has narrow
+value as a *secondary* ranker inside AZ/NV behavioral-health (Option B) if that sector is ever
+targeted specifically — but that is a deliberate, separate decision, not this cutover.
