@@ -340,7 +340,21 @@ degree max 2,897/p99 87/p50 2; per-type clique caps (full≤cap, star≤hub, dro
 above) dropped 67 hubs = the corporate roll-up infra (DaVita's WEY|SAMUEL across
 1,817 NPIs, Walgreens PAC 1,907). Known operators connect (Total Renal Care,
 Bayada, Pediatric Services of America=Aveanna, Pinnacle).
-NEXT (paused for go-ahead): Phase 4 features/encoders → Phase 5 splits+leakage.
+Re-audit (`check_edges.py`) caught owner edges 91% duplicate (pair sharing multiple
+co-owners) → deduped within-type: **2.92M edges** (was 3.99M), connectivity
+unchanged. Only **58.5% of 578 positives connected** (240 solo bad actors → GNN
+upside concentrated on the connected set).
+**DONE — GATE 4+5** (`splits.py`, `features.py`): temporal×structural split,
+group=company_id (no straddles). Cutoffs cumulative-positive-driven (year
+percentiles collapse on 2022-26 skew): train ≤2023 (270 pos), val 2024 (130),
+test 2025-26 (178) — positives in every split. Leakage: only **3 positive↔positive
+edges cross splits** (36% all-edge crossing is harmless neg/unlabeled; Phase-8
+ablation is the real test). `split_masks.parquet`. Features: **X_num (617062,47)**
+= 39 billing + 8 graph (provider_age, per-type degree, component size); median-
+impute+standardize fit on TRAIN only, ±5 clip, no NaN/inf. X_cat (617062,3) vocab
+{entity:3, taxonomy:772, state:84}. `X_num.npy`/`X_cat.npy`/`features_meta.json`.
+NEXT (paused for go-ahead): Phase 6 FraudSAGE model → Phase 7 training (≥3 seeds,
+PR-AUC, NeighborLoader).
 
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
