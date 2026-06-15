@@ -51,14 +51,16 @@ def year_from(s):
 
 
 def leie_positives(universe):
-    """fraud-relevant LEIE NPIs in the universe → {npi: year}; also all-LEIE set."""
+    """fraud-relevant + all LEIE NPIs in the universe, each with an exclusion year."""
     df = pd.read_csv(PRECLEAN / "Caught.csv", dtype=str, keep_default_na=False)
     df = df[df["NPI"].str.fullmatch(r"[12]\d{9}") & df["NPI"].isin(universe)]
     df["yr"] = pd.to_datetime(df["EXCLDATE"], format="%Y%m%d", errors="coerce").dt.year
+    df = df[df["yr"].between(2006, 2026)]
     any_leie = set(df["NPI"])
+    any_year = df.groupby("NPI")["yr"].min().astype(int).to_dict()
     fr = df[df["EXCLTYPE"].isin(FRAUD_RELEVANT)]
-    fr_year = fr.dropna(subset=["yr"]).groupby("NPI")["yr"].min().astype(int).to_dict()
-    return any_leie, set(fr["NPI"]), fr_year
+    fr_year = fr.groupby("NPI")["yr"].min().astype(int).to_dict()
+    return any_leie, set(fr["NPI"]), fr_year, any_year
 
 
 def ahcccs_positives(universe):
@@ -87,7 +89,7 @@ def main():
     log(f"  universe {len(universe):,} NPIs | current provider_on_leie positives {len(cur_leie):,}")
 
     log("[2/4] Fraud-relevant LEIE (drop license/loan exclusions)")
-    any_leie, fraud_leie, fr_year = leie_positives(universe)
+    any_leie, fraud_leie, fr_year, any_year = leie_positives(universe)
     log(f"  LEIE in universe: any-type {len(any_leie):,} | fraud-relevant {len(fraud_leie):,} "
         f"(dropped {len(any_leie)-len(fraud_leie):,} non-fraud exclusions)")
 
@@ -98,11 +100,18 @@ def main():
 
     log("[4/4] Assembling label table")
     fraud_pos = set(fraud_leie) | set(az) | set(nv)
-    years = {}
-    for d in (fr_year, az, nv):
-        for n, y in d.items():
-            if y and (n not in years or y < years[n]):
-                years[n] = y
+
+    def min_year(*dicts):
+        """earliest non-null year for an NPI across the given {npi:year} maps."""
+        out = {}
+        for d in dicts:
+            for n, y in d.items():
+                if y and (n not in out or y < out[n]):
+                    out[n] = y
+        return out
+
+    fraud_year = min_year(fr_year, az, nv)              # year for the fraud_positive target
+    excl_year_all = min_year(any_year, az, nv)          # year for ANY excluded node (covers variant A)
     rows = []
     for n in universe:
         rows.append({
@@ -112,7 +121,8 @@ def main():
             "on_ahcccs": n in az,
             "on_nv": n in nv,
             "fraud_positive": n in fraud_pos,
-            "excl_year": years.get(n),
+            "excl_year": fraud_year.get(n),             # fraud-target year
+            "excl_year_all": excl_year_all.get(n),      # any-source year (for temporal split of every variant)
         })
     lab = pd.DataFrame(rows)
     lab.to_parquet(OUT, index=False)
