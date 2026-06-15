@@ -364,9 +364,14 @@ no NPI-level fraud signal: fraudsters are LESS connected (58.5%) than clean
 negatives (70.8%), so message passing OVER-SMOOTHS positives toward clean
 neighbors (active harm, not just neutral). The shell-ring signal lives at COMPANY
 grain, not NPI grain. Defensible negative result (plan: "ship the simpler model").
-NEXT: regularization pass (--tag _reg, hidden32/dropout0.5/1layer/wd0.01) to try to
-match 0.195, then Phase 8 head-to-head + leakage ablation + precision@K (the
-use-case metric). Likely outcome: keep LightGBM; consider company-grain GNN later.
+**VERDICT — MERGED TO MAIN as a documented negative result** (`src/gnn/VERDICT.md`,
+branch `feat/gnn-scaffold` merged). Head-to-head, SAME temporal split, every metric:
+no-graph GBM beats GNN — val PR-AUC 0.195 vs 0.145, val P@100 0.40 vs 0.20, test
+0.117 vs 0.093. **DECISION: production scorer stays LightGBM (`src/model/`), no
+pipeline change.** GNN scaffolding kept (full 7-gate pipeline: node table, edge
+builder w/ caps, splits, features, FraudSAGE, full-batch trainer) — reusable if a
+COMPANY-grain GNN is tried later (where shell-ring signal actually lives). Reg pass
+not pursued (ceiling capped by no-NPI-signal). venv `.venv-gnn` (gitignored).
 
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
