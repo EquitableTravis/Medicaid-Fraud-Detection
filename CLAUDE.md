@@ -325,7 +325,22 @@ Reuse map: `model/score.py::rollup_to_company`, `export_leads`, `screen_leads`,
 `build_pursuit_pipeline` (Phase 10); `graph_work` norm helpers + `load_pecos` (edges).
 NOTE: EXCLDATE only in `preclean/Caught.csv` (temporal split, Phase 5);
 `model_leads_CLEANED.csv` not script-reproducible → Phase 10 targets the screened
-chain. NEXT (paused for go-ahead): Phase 2 schema → Phase 3 edges (the hard part).
+chain.
+**EDGE SET EXPANDED** (beyond the PDF's 3) after a data-leverage review: 5 core
+edge types — `shared_owner` (owner files via PECOS), `shared_authorized_official`
+(NPPES AO — broad; owner-files only cover 5 categories), `shared_PAC`, `shared_fax`,
+`shared_address`; optional phone/mailing; SKIP taxonomy-state peer edges; DEFER
+claims co-bill (Spending.csv 238M rows) to Phase 12; ADD NPI enum-date→provider-age
+feature. All from one NPPES stream + PECOS + owner files.
+**DONE — GATE 2+3** (`src/gnn/SCHEMA.md`, `build_edges.py`): **3,986,034 edges**
+across 5 types → `Model/gnn/edges_*.npy` + `edges_all.npy`/`edge_type_all.npy` +
+`nppes_node_attrs.parquet` (age, 607,863/617,062 non-null) + `edge_drop_log.csv`.
+Graph healthy: largest component 30.4% (not a blob), 69.6% connected (not dust),
+degree max 2,897/p99 87/p50 2; per-type clique caps (full≤cap, star≤hub, drop
+above) dropped 67 hubs = the corporate roll-up infra (DaVita's WEY|SAMUEL across
+1,817 NPIs, Walgreens PAC 1,907). Known operators connect (Total Renal Care,
+Bayada, Pediatric Services of America=Aveanna, Pinnacle).
+NEXT (paused for go-ahead): Phase 4 features/encoders → Phase 5 splits+leakage.
 
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
