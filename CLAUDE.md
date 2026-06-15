@@ -308,6 +308,25 @@ pursuit pipeline. (5) Top betweenness brokers via PECOS = national chains
 COMBS/HEINE/SWEETEN/FULLER/PETERS/PAI/BLIATOUT(=HALO CEO, corroborates batch-2)/
 DRAKE — unresearched broker names are the next research batch.
 
+## GNN TRACK (2026-06-15, `src/gnn/`, branch `feat/gnn-scaffold`)
+New training track: replace the per-NPI LightGBM SCORE with a GraphSAGE GNN that
+scores each NPI from its neighborhood (shared owner/PAC/address), then feed scores
+into the SAME downstream pipeline (rollup → $10M → screens → dedupe). Full plan:
+12 gated phases, locked decisions: anomaly_score NOT a feature (it defines the
+reliable-neg class — circular); loss trains only on labeled nodes (LEIE pos ∪
+reliable neg), unlabeled pass messages but zero gradient; NO Neo4j on training path
+(in-memory X + edge_index); inductive GraphSAGE; temporal AND structural
+(owner-group) splits. Code in `src/gnn/`, artifacts `~/Desktop/Data/Model/gnn/`,
+dedicated Python 3.11 venv `.venv-gnn` (torch 2.12 + torch_geometric 2.8, MPS).
+**DONE — GATE 0+1:** node table built — `Model/gnn/nodes.parquet` (617,062 NPIs,
+42 leakage-free features via reused `model.data.build_feature_matrix`; positive=578
+/ reliable_neg=307,460 / unlabeled=309,024; universe{pos∪neg}==PU npi set exactly).
+Reuse map: `model/score.py::rollup_to_company`, `export_leads`, `screen_leads`,
+`build_pursuit_pipeline` (Phase 10); `graph_work` norm helpers + `load_pecos` (edges).
+NOTE: EXCLDATE only in `preclean/Caught.csv` (temporal split, Phase 5);
+`model_leads_CLEANED.csv` not script-reproducible → Phase 10 targets the screened
+chain. NEXT (paused for go-ahead): Phase 2 schema → Phase 3 edges (the hard part).
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
 2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
