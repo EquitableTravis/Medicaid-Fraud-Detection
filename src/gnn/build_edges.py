@@ -81,9 +81,12 @@ def log(m=""):
 
 
 def edges_from_groups(key_to_rows, etype, drop_log):
-    """Emit undirected [2,E] edges with per-type clique caps; record stars/drops."""
+    """Emit undirected [2,E] edges with per-type clique caps; record stars/drops.
+    Pairs are DEDUPED within the type (an NPI pair sharing several keys of the same
+    type — e.g. multiple co-owners — must be ONE edge, not N, or message passing
+    double-counts that neighbor)."""
     full_cap, hub_cap = CAPS[etype]
-    src, dst = [], []
+    pairs = set()                       # unique undirected (min,max) pairs
     n_full = n_star = n_drop = 0
     for key, rows in key_to_rows.items():
         rows = sorted(set(rows))
@@ -92,12 +95,12 @@ def edges_from_groups(key_to_rows, etype, drop_log):
             continue
         if n <= full_cap:
             for a, b in itertools.combinations(rows, 2):
-                src.append(a); dst.append(b)
+                pairs.add((a, b))       # rows sorted → a < b
             n_full += 1
         elif n <= hub_cap:
             rep = rows[0]
             for r in rows[1:]:
-                src.append(rep); dst.append(r)
+                pairs.add((rep, r))     # rep is min → rep < r
             n_star += 1
             drop_log.append({"edge_type": etype, "key": str(key)[:80],
                              "group_size": n, "action": "star"})
@@ -105,13 +108,13 @@ def edges_from_groups(key_to_rows, etype, drop_log):
             n_drop += 1
             drop_log.append({"edge_type": etype, "key": str(key)[:80],
                              "group_size": n, "action": "dropped_hub"})
-    if not src:
+    if not pairs:
         ei = np.empty((2, 0), dtype=np.int64)
     else:
-        s = np.array(src, dtype=np.int64); d = np.array(dst, dtype=np.int64)
-        ei = np.vstack([np.concatenate([s, d]), np.concatenate([d, s])])  # undirected
-    log(f"  {etype:6s}: {ei.shape[1]:>10,} edges | groups full={n_full:,} "
-        f"star={n_star:,} dropped_hub={n_drop:,}")
+        arr = np.array(sorted(pairs), dtype=np.int64).T            # [2, P] unique
+        ei = np.hstack([arr, arr[[1, 0]]])                         # both directions
+    log(f"  {etype:6s}: {ei.shape[1]:>10,} edges ({ei.shape[1]//2:,} unique pairs) | "
+        f"groups full={n_full:,} star={n_star:,} dropped_hub={n_drop:,}")
     return ei
 
 
