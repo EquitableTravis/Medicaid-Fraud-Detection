@@ -1,0 +1,12 @@
+# GNN training track — dedicated venv (Python 3.11), separate from the repo's
+# top-level requirements.txt. Build with:
+#   python3.11 -m venv .venv-gnn && source .venv-gnn/bin/activate
+#   pip install -r src/gnn/requirements-gnn.txt
+# Pins are the versions GATE 0 was verified against (MPS on Apple Silicon).
+torch==2.12.0
+torch_geometric==2.8.0
+pandas==3.0.3
+pyarrow==24.0.0
+numpy==2.4.6
+scikit-learn==1.9.0
+scipy==1.17.1
