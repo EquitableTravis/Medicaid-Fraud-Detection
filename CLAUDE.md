@@ -373,6 +373,21 @@ builder w/ caps, splits, features, FraudSAGE, full-batch trainer) — reusable i
 COMPANY-grain GNN is tried later (where shell-ring signal actually lives). Reg pass
 not pursued (ceiling capped by no-NPI-signal). venv `.venv-gnn` (gitignored).
 
+## GRAPH-FEATURES PROBE (2026-06-15, `graph_features/`, branch `feat/graph-features`)
+Follow-up to the GNN: instead of a neural rebuild, ADD graph-structure feature columns
+to the existing model and let LightGBM decide if structure helps (cheap, safe — features
+can't degrade a tree). Path A (augment the NPI model; no company model exists to clone);
+`src/model/` byte-for-byte untouched; reuses the GNN edges + temporal split; libs added
+to `.venv-gnn` (lightgbm/networkx/shap). GATE 0: harness reproduces existing model
+(0.4653 vs 0.465). **VERDICT — NEUTRAL, keep existing LightGBM** (`graph_features/VERDICT.md`):
+head-to-head val PR-AUC billing 0.241 [0.027-0.399], +structure 0.230 (Δ-0.012, within
+noise), +proximity 0.038 (COLLAPSED — train-label echo: excluded source set ≈ train
+positives → dist=0; only 5,544/617k nodes within 4 hops of a ≤2023 exclusion), +all 0.008.
+SHAP: model WOULD use graph feats (comp_size rank 1) but they don't generalize. **Two
+independent methods (GNN message-passing + tree features) now agree: no NPI-grain
+structural fraud signal** (fraudsters under-connected); shell-ring signal lives at COMPANY
+grain. Production model unchanged; reusable harness kept for a possible company-grain model.
+
 ## Next steps (not started)
 1. Calibration / threshold pick for the ad-targeting handoff (company grain).
 2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
