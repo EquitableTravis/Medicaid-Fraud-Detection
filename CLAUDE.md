@@ -419,10 +419,31 @@ that share a billing shape — same lesson as the GNN/graph tracks, one level up
 + advertising leads UNCHANGED; `fraud_positive` model + `leads_new` kept under
 `Model/fraud_positive/`, not promoted. The 3 new institutional screens are a keeper regardless.
 
+## HARVEST + FORWARD TEST (2026-06-15, `src/model/{forward_test,explain_leads,finalize_handoff}.py`, MERGED to main)
+After the labels track, decided (with user) to stop iterating on the model — three tracks
+(GNN, graph-features, expanded label) all hit the same wall: the 42 billing features describe
+billing *shape*, not fraud. So: ship the cheap wins + measure the real value.
+
+- **3 institutional screens folded into production** (`build_final_leads.classify`, shared by
+  `screen_leads` and the unsupervised FinalLeads pipeline): school districts (LEA taxonomy
+  `251300000X` + name list), academic/safety-net (FACULTY / MEDICAL COLLEGE / DISTRICT MEDICAL
+  GROUP), tribal gap patched (+TRIBES, INDIAN COMMUNITY — word-boundary missed "TULALIP TRIBES").
+  +48 FPs removed from the production list.
+- **Per-lead SHAP drivers** (`explain_leads.py`, `pred_contrib`): every lead carries its top
+  driving features (utilization intensity vs taxonomy peers, paid-per-patient, taxonomy).
+- **NPPES name resolution** (`finalize_handoff.py`): all 66 UNKNOWN individual-NPI leads resolved
+  to person names via `provider_dim.provider_name`. No bare NPI reaches the ad team.
+- **Honest score-band calibration** (`finalize_handoff.py`): LEIE lift is NOT monotonic — ~base
+  rate across 0.5–0.99, then **12.7x only at ≥0.99**. So "high confidence" = ≥0.99 (1,269 leads);
+  below ~0.9 leads rest on the $10M + screen filters, not the score. → `model_leads_handoff.csv`.
+- **FORWARD TEST started** (`forward_test.py`): froze 2026-06-15 baseline (617k NPIs, BOTH the
+  production all-LEIE and fraud_positive scores; LEIE snapshot 2026-06-02). When the next LEIE is
+  re-pulled, `measure --future-leie <Caught.csv>` reports precision@K + lift on genuinely-future
+  exclusions for both models — the honest production-value number AND the label tiebreaker the
+  backtests couldn't give. → `Model/forward_test/`.
+
 ## Next steps (not started)
-1. Calibration / threshold pick for the ad-targeting handoff (company grain).
-2. Per-lead explainability: SHAP contributions (`pred_contrib=True`) so each
-   lead carries its driving features, like the rest of the pipeline.
-3. NPPES person-name resolution for the 66 individual-NPI leads.
-4. Retrain-on-all + fresh-LEIE-download forward test (the strongest possible
-   validation: score today, check against next LEIE monthly update).
+1. **Run `forward_test.py measure`** once a fresh LEIE/AHCCCS pull is available (the pending result).
+2. Claims-level signal (238M-row Spending.csv: co-bill / shared-patient / referral edges) — the one
+   untapped source with a higher ceiling; only worth it if the forward test shows the lift is real.
+3. Company-grain supervised model — where the GNN/graph tracks said shell-ring signal lives.
