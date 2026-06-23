@@ -442,7 +442,34 @@ billing *shape*, not fraud. So: ship the cheap wins + measure the real value.
   exclusions for both models — the honest production-value number AND the label tiebreaker the
   backtests couldn't give. → `Model/forward_test/`.
 
+## NO-GEO MODEL + A/B DEEP ADJUDICATION (2026-06-16/17, `labels/`, on main)
+- **No-geo model** (`labels/{ablate_geo,leads_nogeo,pipeline_nogeo}.py`): fraud_positive trained
+  WITHOUT `practice_state`/`primary_taxonomy` → flags purely on billing behavior, no guilt-by-
+  specialty. Detection holds (test PR-AUC 0.518 vs 0.550; P@50 1.00). Concentration barely changes
+  (the AZ/behavioral skew is a data property, not a categorical-feature artifact — production list
+  has the same ~6% AZ). Produced the NOVEL list (`~/Desktop/NoGeo_Model_Leads/`, 3,237 leads).
+- **A-vs-B deep checks** (`labels/{audit_cleaned_leads,explain_flags}.py`): 24/25 flags are real
+  peer-rate anomalies (not size, not guilt-by-specialty). Top-20 enforcement adjudication +
+  forensic "do the numbers have a benign explanation" passes. KEY honest finding: the temporal
+  benchmark favors the expanded model, but production (all-LEIE) leads had more NON-circular
+  confirmed hits (fraud_positive re-finds its own AHCCCS training labels). Both surface real fraud
+  (Numotion FCA, Capstone/United Youth convictions, AZ AHCCCS cluster). "National chain ≠ clean":
+  graph operator-families include DaVita/Fresenius/ResCare with real fraud settlements.
+
+## MODEL D — ALL-STATE EXCLUSIONS (2026-06-23, `labels/{train_model_d,pipeline_model_d}.py`, on main)
+**Model D = trained on ALL exclusions: fraud-relevant LEIE ∪ all 38 state Medicaid exclusion lists**
+(pulled via OpenSanctions `us_*_med_exclusions`, NPI-matched; saved
+`Model/labels/all_state_exclusions_npis.csv`). 13,859 distinct national state-excluded NPIs, **2,231
+in our 617k universe** → Model D positives = **2,386** (vs C's 889, A's 578; net-new +1,497).
+**Wins the temporal benchmark on EVERY target incl. the neutral one** (future fraud-relevant LEIE,
+which it didn't over-train on): test PR-AUC **D 0.556 vs C 0.464 vs A 0.274**, val P@50 0.91 vs 0.72
+vs 0.50. Real generalization (more enforcement labels → better fraud detection), not circular.
+Caveats: benchmark win ≠ lead win (the GATE-4 lesson) — still needs lead-quality + forward-test
+confirmation. Lead list (filters: rollup → $10M → **score ≥ 0.90** → hardened screens → names/SHAP/
+bands) → `~/Desktop/Model_D_Leads/` (4,302 leads; 4,203 novel).
+
 ## Next steps (not started)
+0. **Model D**: freeze into the forward test (4-way A/C/no-geo/D); lead-quality adjudication before production.
 1. **Run `forward_test.py measure`** once a fresh LEIE/AHCCCS pull is available (the pending result).
 2. Claims-level signal (238M-row Spending.csv: co-bill / shared-patient / referral edges) — the one
    untapped source with a higher ceiling; only worth it if the forward test shows the lift is real.
