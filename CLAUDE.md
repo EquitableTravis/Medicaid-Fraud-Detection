@@ -468,8 +468,34 @@ Caveats: benchmark win ≠ lead win (the GATE-4 lesson) — still needs lead-qua
 confirmation. Lead list (filters: rollup → $10M → **score ≥ 0.90** → hardened screens → names/SHAP/
 bands) → `~/Desktop/Model_D_Leads/` (4,302 leads; 4,203 novel).
 
+## CARE-MODEL PEERING (2026-06-24, `labels/{repeer_and_train_d,pipeline_model_d_repeer,train_model_d_nogeo}.py`, on main)
+Attacked the taxonomy-mismatch FP problem: the rate-anomaly peer features (`*_rz_tax`/`_pct_tax`/
+`_taxstate`) z-score each provider against same-`primary_taxonomy` providers, but self-reported
+taxonomy mismatches the care/reimbursement model — FQHCs coded "Family Medicine" get scored vs
+fee-for-service GPs, so their bundled per-encounter rate looks anomalous from the mismatch alone.
+- **Method** (`repeer_and_train_d.care_clusters`/`repeer`): MiniBatchKMeans (K=30) clusters providers
+  by OPERATIONAL signature — service breadth (n_distinct_hcpcs), concentration (top_hcpcs_share,
+  hcpcs_hhi), visit intensity (lines/patient), scale, tenure, entity type — NOT the payment-dollar
+  magnitudes being tested. Recompute robust-z + percentile of the 4 rate metrics WITHIN cluster → 8
+  `_*_cluster` cols. Feature-level effect is real: the 3 example FQHCs' paid/claim z drops
+  +5.6→+1.7, +8.4→+2.6, +9.8→+3.1.
+- **Benchmark** (Model D label, 3 seeds, identical temporal split, neutral/state/all targets):
+  care-model-only (REPLACE the 16 tax cols with 8 cluster cols) is clearly WORSE (loses info; neutral
+  test 0.431 vs 0.569). But **BOTH (ADD cluster cols on top of taxonomy) is a small, consistent WIN on
+  every target and metric** — neutral test PR-AUC 0.569→0.589 & val P@50 0.91→0.95; state 0.502→0.519;
+  all_excl 0.509→0.526; CIs tighter (BOTH near-separates from base). First additive feature win since A.
+- **BUT the lead-list artifact goal was NOT met** (`pipeline_model_d_repeer.py`, output
+  `~/Desktop/Model_D_repeer_Leads/`): re-peering only demoted the 3 named FQHCs modestly (ranks 1→8,
+  4→13, 8→18); FQHC/RHC-named in top-50 unchanged (2→2), TOTAL FQHC count rose 113→125, list grew
+  4,302→4,810 (+508, +634 high-confidence). Metric up, headline FP pattern still in the leads.
+- **VERDICT:** keep the BOTH feature set as a modest Model D improvement; care-model peering is NOT
+  the FQHC fix it was hoped to be. Per the GATE-4 lesson (benchmark win ≠ lead win) do NOT auto-promote
+  — needs lead adjudication + forward-test first. `train_model_d_nogeo.py` = Model D geo-ablation
+  harness (companion, not yet adjudicated).
+
 ## Next steps (not started)
 0. **Model D**: freeze into the forward test (4-way A/C/no-geo/D); lead-quality adjudication before production.
+   Decide whether to fold the care-model `BOTH` features into the frozen Model D variant.
 1. **Run `forward_test.py measure`** once a fresh LEIE/AHCCCS pull is available (the pending result).
 2. Claims-level signal (238M-row Spending.csv: co-bill / shared-patient / referral edges) — the one
    untapped source with a higher ceiling; only worth it if the forward test shows the lift is real.
