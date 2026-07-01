@@ -500,3 +500,30 @@ fee-for-service GPs, so their bundled per-encounter rate looks anomalous from th
 2. Claims-level signal (238M-row Spending.csv: co-bill / shared-patient / referral edges) — the one
    untapped source with a higher ceiling; only worth it if the forward test shows the lift is real.
 3. Company-grain supervised model — where the GNN/graph tracks said shell-ring signal lives.
+
+## LABEL PURITY AUDIT (2026-07-01, `labels/{audit_state_basis,train_label_purity}.py`, on main)
+Question (Travis): are the "guaranteed fraud" positives actually fraud? **Answer: mostly no —
+and that's OK for training, but not for naming.** Model D's label (fraud-relevant LEIE ∪ 30 state
+lists — CLAUDE's earlier "38 lists" overstated; the artifact holds 30 states) = 2,386 in-universe
+positives, of which only ~421 are strict fraud CONVICTIONS (LEIE a1/a3/b1/b7 ∪ state records with
+explicit fraud text). 193 more are AZ AHCCCS credible-allegation suspensions (allegation-grade).
+The other ~1,770: license actions, federal-LEIE mirrors (84 provably NON-fraud LEIE types
+re-admitted via state lists — structural hole in the union), program/policy violations (KMAP,
+MassHealth, NMAP, overpayment, bad debt), NV "Tier" terminations (tier semantics unpublished),
+and ~900 from states that publish no reason (CA/NY/OH/SC/PA). Per-NPI evidence now durable:
+`Model/labels/state_exclusion_basis.csv` (all 30 states, OpenSanctions description text; IN
+dataset 404s) + `Model/labels/fraud_conviction_labels.csv` (tiered: leie_strict_fraud /
+state_fraud_text / az_credible_allegation).
+
+**Controlled 3-arm test on the newest config (no-geo + cluster features, temporal protocol,
+neutral future-strict-fraud target, 3 seeds):** D_original (2,386 pos) val PR-AUC **0.667**
+[0.666-0.667] / test 0.615 / P@50 0.97; D_conviction (421) **collapses** to 0.056 [0.017-0.134]
+(the ~250-positive fragility again); D_convic_az (613) 0.486 / 0.413 / 0.75. Same on the
+production LEIE label (172 non-fraud of 578): dropping them HURT (random-split 0.40 vs 0.50) or
+tied (temporal). **DECISION: keep training on the full exclusion label (it's an EXCLUSION-RISK
+model — impure-but-related positives carry signal); use the conviction tier as the evaluation
+target and for lead-tier labeling, never call the training label "guaranteed fraud".** Known
+caveat: part of D_original's neutral-target edge is state-exclusion→later-LEIE precedence
+(already-caught-by-a-state providers count as "found"); same caveat as the labels-track
+circularity note. Next: trey extra-features run (`~/Desktop/data/preclean/trey/` — Google Drive
+file, needs manual download) trains D_original label + trey features vs baseline on this harness.
