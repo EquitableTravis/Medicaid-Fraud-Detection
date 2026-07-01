@@ -527,3 +527,24 @@ caveat: part of D_original's neutral-target edge is state-exclusion→later-LEIE
 (already-caught-by-a-state providers count as "found"); same caveat as the labels-track
 circularity note. Next: trey extra-features run (`~/Desktop/data/preclean/trey/` — Google Drive
 file, needs manual download) trains D_original label + trey features vs baseline on this harness.
+
+## TREY FEATURES — BIG WIN (2026-07-01, `labels/train_trey_features.py`, branch `trey-data-model`)
+Trey's `~/Desktop/data/preclean/trey/provider_scored.parquet` (617,062 NPI-grain rows — exact
+universe match — 118 cols from NEW sources: E&M coding levels, Part B/D utilization + drug/opioid
+mix, Open Payments, address clustering, market saturation, PBJ staffing, hospice live-discharge,
+deficiencies, behavior subscores, shell/graph structure). 63 usable feature cols after dropping
+label/leakage (provider_on_exclusion, within_2_hops_of_exclusion, weak_label*, has_excluded_owner,
+subscore_ownership_integrity...), detector-derived, and identity/geo/taxonomy cols.
+
+**Controlled A/B on the exclusion-risk config (no-geo + cluster, temporal, neutral future
+strict-fraud target, 3 seeds): baseline 48 feats val PR-AUC 0.667 / test 0.615 → +trey 111 feats
+val 0.905 [0.894-0.916] / test 0.875 [0.870-0.881]**, P@50 0.99. Biggest single jump in the
+project's history. Leak-checked: top trey features solo PR-AUC ≤0.064 (shell_score; others ≈base
+rate 0.00035) — broad interaction signal, not a leaky column. Top gain: services_per_bene (75%
+null — Part B/D covers ~25% of universe), shell_score, expected_net_paid, subscore_rapid_ramp,
+co_location_cluster_size. Trey cols = 35.2% of total model gain. Results:
+`Model/labels/trey_ab_results.json`, importances `Model/labels/trey_feature_importance.csv`.
+OPEN before production cutover: (1) ask Trey how expected_net_paid/billing_residual and the
+subscores were built — if any were fit/tuned against exclusion lists there's designer leakage the
+column drop can't catch; (2) universe scoring + lead-list rebuild + adjudication (GATE-4 lesson:
+benchmark win ≠ lead win); (3) fold into forward test.
