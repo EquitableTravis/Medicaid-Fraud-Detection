@@ -580,3 +580,18 @@ v3 pipeline → `Trey Data Model/v3_handoff_contract/` (leads 5,525 / NOVEL 5,42
 at $291.5B); v3 top-100 adjudication coverage carried by npi_list: 27 caught / 23 viable / 17 FP /
 33 unresearched. TODO: obtain the rest of Trey's folder (feature_manifest.json, signal_ranking.csv,
 dictionaries) — Travis only ever had provider_scored.parquet.
+
+## TREY V4 — MANIFEST-EXACT + FEEDBACK PACKET (2026-07-02, branch `trey-data-model`)
+Travis obtained `feature_manifest.json` (Desktop): weak_label PROVEN label-derived (LF weights fit
+on 2,186 anchors = 1,943 exclusion positives + 243 confirmed_clean; lf_near_exclusion weight 4.595);
+leakage_adjacent = {within_2_hops, shell_score, related_party_density, subscore_ownership_integrity,
+has_excluded_owner}; expected_net_paid/billing_residual/concept-cols classified as sanctioned RAW.
+v4 (--variant v4) obeys the manifest verbatim: **val 0.685 [0.681-0.691] / test 0.632, group-aware
+0.692/0.624 — same as v3.** DECISIVE: v1's 0.905 gap now attributes to shell_score +
+related_party_density, EXACTLY the author-flagged leakage-adjacent graph columns. Sanctioned
+residual/concept columns add nothing. v4 pipeline → `Trey Data Model/v4_manifest_exact/` (leads
+5,646 / NOVEL 5,546). Trey feedback packet (his "first loop" ask) → `Trey Data Model/for_trey/`:
+unseen_provider_scores_v4.csv (scores for ONLY the 308,070 never-trained/tested providers),
+feature_importance_v4.csv (two-col, gain-sorted), both scripts, README with the shell_score /
+expected_net_paid regression questions. Remaining Trey asks: signal_ranking.csv + what drives
+shell_score + expected_net_paid regression basis.
