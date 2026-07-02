@@ -61,16 +61,11 @@ TREY_DROP = {
     "layer3_probable_owner", "within_2_hops_of_exclusion", "weak_label",
     "weak_label_score", "weak_label_votes", "confirmed_clean", "clean_basis",
     "assessable",
-    # engineered statistical scores / expectation-model outputs (v2 policy,
-    # per Travis 2026-07-01): train only on RAW behavioral measurements —
-    # constructed fraud scores and model residuals are unverifiable and risk
-    # designer leakage. Raw peer-percentiles of raw metrics stay.
-    "subscore_single_service_mill", "subscore_payment_outlier",
-    "subscore_overutilization", "subscore_specialty_mismatch",
-    "subscore_rapid_ramp", "subscore_ownership_integrity", "subscore_upcoding",
-    "subscore_pharma_kickback", "subscore_drug_outlier",
-    "subscore_worthless_services", "subscore_hospice_ineligibility",
-    "subscore_saturation_fraud", "subscore_pill_mill",
+    # engineered columns NEVER sanctioned by Trey's handoff (HANDOFF_TRAVIS_V1):
+    # ownership_integrity is the handoff's own "leakage flag"; shell_score /
+    # expected_net_paid / billing_residual / weak_label* appear nowhere in its
+    # column contract — unverified, stay out in every variant.
+    "subscore_ownership_integrity",
     "shell_score", "expected_net_paid", "billing_residual",
     # detector-derived
     "anomaly_score", "anomaly_pct", "signals_tripped", "priority_tier",
@@ -83,17 +78,34 @@ TREY_DROP = {
     "group_id", "peer_group_key", "nucc_grouping", "nucc_classification",
 }
 
+# The 12 handoff-sanctioned rules-engine subscores ("Trees can use raw +
+# peerpct + subscores together"). Excluded under the v2 raw-only policy;
+# included under --include-subscores (v3, per HANDOFF_TRAVIS_V1 contract).
+SUBSCORES_12 = {
+    "subscore_single_service_mill", "subscore_payment_outlier",
+    "subscore_overutilization", "subscore_specialty_mismatch",
+    "subscore_rapid_ramp", "subscore_upcoding", "subscore_pharma_kickback",
+    "subscore_drug_outlier", "subscore_worthless_services",
+    "subscore_hospice_ineligibility", "subscore_saturation_fraud",
+    "subscore_pill_mill",
+}
+
+
+def get_trey_drop(include_subscores=False):
+    return TREY_DROP if include_subscores else (TREY_DROP | SUBSCORES_12)
+
 
 def log(m=""):
     print(m, flush=True)
 
 
-def load_trey(existing_cols):
+def load_trey(existing_cols, include_subscores=False):
     t = pd.read_parquet(TREY_PARQUET)
     assert t["npi"].is_unique, "trey parquet npi not unique"
+    drop = get_trey_drop(include_subscores)
     dup = {col for col in t.columns if col in existing_cols and col != "npi"}
     keep = [col for col in t.columns
-            if col == "npi" or (col not in TREY_DROP and col not in dup)]
+            if col == "npi" or (col not in drop and col not in dup)]
     t = t[keep]
     bad = [col for col in t.columns if col != "npi" and not (
         pd.api.types.is_numeric_dtype(t[col]) or pd.api.types.is_bool_dtype(t[col]))]
@@ -104,12 +116,22 @@ def load_trey(existing_cols):
         if col != "npi" and pd.api.types.is_bool_dtype(t[col]):
             t[col] = t[col].astype("int8")
     feats = [col for col in t.columns if col != "npi"]
-    log(f"    trey features kept: {len(feats)} (dropped {len(TREY_DROP)} listed + "
+    log(f"    trey features kept: {len(feats)} (dropped {len(drop)} listed + "
         f"{len(dup)} duplicates of existing cols)")
     return t, feats
 
 
 def main():
+    import argparse
+    import hashlib
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--include-subscores", action="store_true",
+                    help="v3: include the 12 handoff-sanctioned rules-engine subscores")
+    ap.add_argument("--group-neg-split", action="store_true",
+                    help="assign negatives to train/val/test by trey group_id (handoff grouped-CV)")
+    ap.add_argument("--skip-baseline", action="store_true")
+    args = ap.parse_args()
+    variant = "plus_trey_v3" if args.include_subscores else "plus_trey"
     log("[1] universe + baseline features (no-geo + cluster)")
     df = pd.read_parquet(c.SCORED_UNIVERSE_PARQUET).reset_index(drop=True)
     X = build_feature_matrix(df).reset_index(drop=True)
@@ -119,7 +141,7 @@ def main():
     cats = [col for col in c.CATEGORICAL_FEATURES if col in X_base.columns]
 
     log("[2] trey features")
-    trey, trey_feats = load_trey(set(df.columns))
+    trey, trey_feats = load_trey(set(df.columns), include_subscores=args.include_subscores)
     order = df[["npi"]].merge(trey, on="npi", how="left", validate="1:1")
     assert len(order) == len(df)
     n_match = int(order[trey_feats[0]].notna().sum()) if trey_feats else 0
@@ -170,7 +192,17 @@ def main():
     pos_company = set(company_id[excluded].dropna())
     clean = ((df["anomaly_score"].values == 0) & (~df["not_scored"].fillna(True).values)
              & (~excluded) & (~company_id.isin(pos_company).values))
-    spl = np.array([neg_split(n) if clean[i] else "" for i, n in enumerate(npis)], dtype=object)
+    if args.group_neg_split:
+        gid = pd.read_parquet(TREY_PARQUET, columns=["npi", "group_id"]).set_index("npi")["group_id"]
+        gmap = pd.Series(npis).map(gid).fillna(pd.Series(npis).values).astype(str).values
+
+        def gsplit(g):
+            h = int(hashlib.md5(g.encode()).hexdigest(), 16) % 100
+            return "train" if h < 70 else ("val" if h < 85 else "test")
+        spl = np.array([gsplit(gmap[i]) if clean[i] else "" for i in range(len(npis))], dtype=object)
+        log("    negatives split GROUP-AWARE by trey group_id (handoff CV rule)")
+    else:
+        spl = np.array([neg_split(n) if clean[i] else "" for i, n in enumerate(npis)], dtype=object)
     neg_tr, neg_va, neg_te = spl == "train", spl == "val", spl == "test"
     log(f"    positives {int(pos.sum())} | clean negatives {int(clean.sum()):,}")
 
@@ -178,7 +210,10 @@ def main():
 
     log("[4] training baseline vs +trey (3 seeds, temporal)")
     results = {}
-    for name, Xf in (("baseline", X_base), ("plus_trey", X_trey)):
+    arms = [("baseline", X_base), (variant, X_trey)]
+    if args.skip_baseline:
+        arms = arms[1:]
+    for name, Xf in arms:
         trpos = pos & (y_pos <= TRAIN_MAX)
         tr = trpos | neg_tr
         arm = []
@@ -202,7 +237,7 @@ def main():
             log(f"    {name} ({Xf.shape[1]} feats) seed {seed}: "
                 f"val {arm[-1]['val_pr_auc']:.3f} test {arm[-1]['test_pr_auc']:.3f} "
                 f"P@50 {arm[-1]['val_p50']:.2f}")
-            if name == "plus_trey" and seed == SEEDS[-1]:
+            if name == variant and seed == SEEDS[-1]:
                 imp = pd.DataFrame({"feature": Xf.columns,
                                     "gain": b.feature_importance("gain")}).sort_values(
                     "gain", ascending=False)
@@ -221,8 +256,8 @@ def main():
         p50 = np.mean([a["val_p50"] for a in arm])
         log(f"{name:10s} val PR-AUC {v.mean():.3f} [{v.min():.3f}-{v.max():.3f}] | "
             f"test {t.mean():.3f} [{t.min():.3f}-{t.max():.3f}] | val P@50 {p50:.2f}")
-    (LABELS_DIR / "trey_ab_results.json").write_text(json.dumps(results, indent=2))
-    log(f"\nresults -> {LABELS_DIR / 'trey_ab_results.json'}")
+    (LABELS_DIR / f"trey_ab_results_{variant}{'_groupsplit' if args.group_neg_split else ''}.json").write_text(json.dumps(results, indent=2))
+
 
 
 if __name__ == "__main__":

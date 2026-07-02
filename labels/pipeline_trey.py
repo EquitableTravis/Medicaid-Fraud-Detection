@@ -50,6 +50,14 @@ def band(s):
 
 
 def main():
+    import argparse
+    global OUTDIR
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--include-subscores", action="store_true",
+                    help="v3: include the 12 handoff-sanctioned subscores")
+    ap.add_argument("--out", type=str, default=str(OUTDIR))
+    args = ap.parse_args()
+    OUTDIR = Path(args.out)
     OUTDIR.mkdir(parents=True, exist_ok=True)
     log("[1/6] Label + clean negatives + trey feature matrix")
     df = pd.read_parquet(c.SCORED_UNIVERSE_PARQUET).reset_index(drop=True)
@@ -57,7 +65,7 @@ def main():
     cl = care_clusters(df)
     X_ng = pd.concat([X_base.drop(columns=[g for g in GEO if g in X_base.columns]),
                       repeer(df, cl).reset_index(drop=True)], axis=1)
-    trey, trey_feats = load_trey(set(df.columns))
+    trey, trey_feats = load_trey(set(df.columns), include_subscores=args.include_subscores)
     order = df[["npi"]].merge(trey, on="npi", how="left", validate="1:1")
     X = pd.concat([X_ng, order[trey_feats].reset_index(drop=True)], axis=1)
     log(f"    feature matrix: {X.shape[1]} features ({len(trey_feats)} from trey)")
