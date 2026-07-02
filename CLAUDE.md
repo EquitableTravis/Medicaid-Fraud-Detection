@@ -563,3 +563,20 @@ Do NOT use v1 numbers as a capability claim. v2 pipeline outputs → `~/Desktop/
 Top-100 adjudication carryover by npi_list: 64 carried (29 caught / 21 viable / 14 FP), 36 new leads
 re-researched by agents. Raw-trey features still reshape the list (17.7% of gain; v2 keeps
 services_per_bene, addr clustering, opioid, Open Payments as top trey contributors).
+
+## TREY V3 — HANDOFF-CONTRACT VARIANT (2026-07-02, branch `trey-data-model`)
+Travis surfaced Trey's `HANDOFF_TRAVIS_V1.pdf` (never seen during v1/v2): it sanctions raw+peerpct+
+the 12 rules-engine subscores as features, flags ONLY ownership_integrity/exclusion-proximity as
+leakage, mandates group_id-aware CV, assessable down-weighting, NaN-native, and forbids
+anomaly_score/anomaly_pct/signals_tripped (matching what we already did). v3 = v2 + the 12
+sanctioned subscores (shell_score/expected_net_paid/billing_residual/weak_label* stay out — they
+appear NOWHERE in his contract): **val 0.693 [0.688-0.698] / test 0.638 — small real gain over
+baseline (+0.03/+0.02), seed-stable, and HOLDS under group-aware CV (0.706/0.634)** via
+--group-neg-split (first-ever grouped-CV run in this project; prior numbers all NPI-hash splits —
+company-disjoint pos/neg was the only prior family protection). **DECISIVE ISOLATION: v1→v3 differ
+by only 3 undocumented columns (shell_score, expected_net_paid, billing_residual) which alone
+carry ~0.21 PR-AUC** — the Trey construction question now targets exactly those + weak_label*.
+v3 pipeline → `Trey Data Model/v3_handoff_contract/` (leads 5,525 / NOVEL 5,425 / PURSUIT 5,421
+at $291.5B); v3 top-100 adjudication coverage carried by npi_list: 27 caught / 23 viable / 17 FP /
+33 unresearched. TODO: obtain the rest of Trey's folder (feature_manifest.json, signal_ranking.csv,
+dictionaries) — Travis only ever had provider_scored.parquet.
