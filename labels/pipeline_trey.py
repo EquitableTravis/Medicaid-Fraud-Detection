@@ -56,6 +56,7 @@ def main():
     ap.add_argument("--include-subscores", action="store_true",
                     help="v3: include the 12 handoff-sanctioned subscores")
     ap.add_argument("--out", type=str, default=str(OUTDIR))
+    ap.add_argument("--variant", type=str, default=None, choices=["v2", "v3", "v4"])
     args = ap.parse_args()
     OUTDIR = Path(args.out)
     OUTDIR.mkdir(parents=True, exist_ok=True)
@@ -65,7 +66,7 @@ def main():
     cl = care_clusters(df)
     X_ng = pd.concat([X_base.drop(columns=[g for g in GEO if g in X_base.columns]),
                       repeer(df, cl).reset_index(drop=True)], axis=1)
-    trey, trey_feats = load_trey(set(df.columns), include_subscores=args.include_subscores)
+    trey, trey_feats = load_trey(set(df.columns), include_subscores=args.include_subscores, variant=args.variant)
     order = df[["npi"]].merge(trey, on="npi", how="left", validate="1:1")
     X = pd.concat([X_ng, order[trey_feats].reset_index(drop=True)], axis=1)
     log(f"    feature matrix: {X.shape[1]} features ({len(trey_feats)} from trey)")

@@ -91,18 +91,34 @@ SUBSCORES_12 = {
 }
 
 
-def get_trey_drop(include_subscores=False):
-    return TREY_DROP if include_subscores else (TREY_DROP | SUBSCORES_12)
+# v4 = exact obedience to feature_manifest.json: drop BOTH leakage tiers
+# (adds related_party_density; shell_score/within_2_hops/ownership already
+# dropped), all label_metadata, identifiers, and the forbidden convenience
+# scores — but RESTORE the manifest-sanctioned raw features we had excluded
+# out of caution: expected_net_paid, billing_residual, and the five
+# concept-named scheme inputs (concentration, payment_intensity,
+# service_intensity, specialty_mismatch, temporal).
+V4_RESTORE = {"expected_net_paid", "billing_residual", "concentration",
+              "payment_intensity", "service_intensity", "specialty_mismatch",
+              "temporal"}
+
+
+def get_trey_drop(include_subscores=False, variant=None):
+    if variant == "v4":
+        return (TREY_DROP - V4_RESTORE) | {"related_party_density"}
+    if variant == "v3" or include_subscores:
+        return TREY_DROP
+    return TREY_DROP | SUBSCORES_12
 
 
 def log(m=""):
     print(m, flush=True)
 
 
-def load_trey(existing_cols, include_subscores=False):
+def load_trey(existing_cols, include_subscores=False, variant=None):
     t = pd.read_parquet(TREY_PARQUET)
     assert t["npi"].is_unique, "trey parquet npi not unique"
-    drop = get_trey_drop(include_subscores)
+    drop = get_trey_drop(include_subscores, variant)
     dup = {col for col in t.columns if col in existing_cols and col != "npi"}
     keep = [col for col in t.columns
             if col == "npi" or (col not in drop and col not in dup)]
@@ -130,8 +146,10 @@ def main():
     ap.add_argument("--group-neg-split", action="store_true",
                     help="assign negatives to train/val/test by trey group_id (handoff grouped-CV)")
     ap.add_argument("--skip-baseline", action="store_true")
+    ap.add_argument("--variant", type=str, default=None, choices=["v2", "v3", "v4"])
     args = ap.parse_args()
-    variant = "plus_trey_v3" if args.include_subscores else "plus_trey"
+    variant = (f"plus_trey_{args.variant}" if args.variant
+               else ("plus_trey_v3" if args.include_subscores else "plus_trey"))
     log("[1] universe + baseline features (no-geo + cluster)")
     df = pd.read_parquet(c.SCORED_UNIVERSE_PARQUET).reset_index(drop=True)
     X = build_feature_matrix(df).reset_index(drop=True)
@@ -141,7 +159,7 @@ def main():
     cats = [col for col in c.CATEGORICAL_FEATURES if col in X_base.columns]
 
     log("[2] trey features")
-    trey, trey_feats = load_trey(set(df.columns), include_subscores=args.include_subscores)
+    trey, trey_feats = load_trey(set(df.columns), include_subscores=args.include_subscores, variant=args.variant)
     order = df[["npi"]].merge(trey, on="npi", how="left", validate="1:1")
     assert len(order) == len(df)
     n_match = int(order[trey_feats[0]].notna().sum()) if trey_feats else 0
@@ -194,7 +212,8 @@ def main():
              & (~excluded) & (~company_id.isin(pos_company).values))
     if args.group_neg_split:
         gid = pd.read_parquet(TREY_PARQUET, columns=["npi", "group_id"]).set_index("npi")["group_id"]
-        gmap = pd.Series(npis).map(gid).fillna(pd.Series(npis).values).astype(str).values
+        npi_ser = pd.Series(npis)
+        gmap = npi_ser.map(gid).fillna(npi_ser).astype(str).values
 
         def gsplit(g):
             h = int(hashlib.md5(g.encode()).hexdigest(), 16) % 100
