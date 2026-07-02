@@ -548,3 +548,18 @@ OPEN before production cutover: (1) ask Trey how expected_net_paid/billing_resid
 subscores were built — if any were fit/tuned against exclusion lists there's designer leakage the
 column drop can't catch; (2) universe scoring + lead-list rebuild + adjudication (GATE-4 lesson:
 benchmark win ≠ lead win); (3) fold into forward test.
+
+## TREY V2 — RAW-BEHAVIOR-ONLY FEATURES: THE V1 WIN WAS THE SCORE COLUMNS (2026-07-01, branch `trey-data-model`)
+Travis's call (correct): do not train on Trey's engineered STATISTICAL SCORES — all 13 `subscore_*`,
+`shell_score`, `expected_net_paid`, `billing_residual` dropped (v2 policy in
+`labels/train_trey_features.py::TREY_DROP`); only RAW behavioral measurements + peer-percentiles
+of raw metrics remain (48 trey cols, 96 total). **Result: the entire v1 benchmark gain vanished** —
+v2 val PR-AUC 0.670 [0.663-0.675] / test 0.614 vs baseline 0.667/0.615 (v1 with scores: 0.905/0.875).
+Conclusion: Trey's RAW data adds no measurable future-fraud ranking signal; the v1 "biggest jump in
+project history" rode entirely on his engineered score columns — consistent with the designer-leakage
+hypothesis (scores fit/informed by known fraud), UNVERIFIED until Trey explains their construction.
+Do NOT use v1 numbers as a capability claim. v2 pipeline outputs → `~/Desktop/Trey Data Model/`
+(leads_final 5,530 / NOVEL 5,430 / PURSUIT 5,426 at $287.2B; v1 archived in `v1_with_score_features/`).
+Top-100 adjudication carryover by npi_list: 64 carried (29 caught / 21 viable / 14 FP), 36 new leads
+re-researched by agents. Raw-trey features still reshape the list (17.7% of gain; v2 keeps
+services_per_bene, addr clustering, opioid, Open Payments as top trey contributors).

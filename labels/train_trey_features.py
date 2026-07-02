@@ -60,7 +60,18 @@ TREY_DROP = {
     "excluded_owner_role", "facility_excluded_owner_n_probable",
     "layer3_probable_owner", "within_2_hops_of_exclusion", "weak_label",
     "weak_label_score", "weak_label_votes", "confirmed_clean", "clean_basis",
-    "subscore_ownership_integrity", "assessable",
+    "assessable",
+    # engineered statistical scores / expectation-model outputs (v2 policy,
+    # per Travis 2026-07-01): train only on RAW behavioral measurements —
+    # constructed fraud scores and model residuals are unverifiable and risk
+    # designer leakage. Raw peer-percentiles of raw metrics stay.
+    "subscore_single_service_mill", "subscore_payment_outlier",
+    "subscore_overutilization", "subscore_specialty_mismatch",
+    "subscore_rapid_ramp", "subscore_ownership_integrity", "subscore_upcoding",
+    "subscore_pharma_kickback", "subscore_drug_outlier",
+    "subscore_worthless_services", "subscore_hospice_ineligibility",
+    "subscore_saturation_fraud", "subscore_pill_mill",
+    "shell_score", "expected_net_paid", "billing_residual",
     # detector-derived
     "anomaly_score", "anomaly_pct", "signals_tripped", "priority_tier",
     "priority_rank", "anomaly_lead_v3", "anomaly_score_v3", "n_concept_signals",
