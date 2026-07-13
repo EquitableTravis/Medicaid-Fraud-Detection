@@ -527,3 +527,21 @@ caveat: part of D_original's neutral-target edge is state-exclusion→later-LEIE
 (already-caught-by-a-state providers count as "found"); same caveat as the labels-track
 circularity note. Next: trey extra-features run (`~/Desktop/data/preclean/trey/` — Google Drive
 file, needs manual download) trains D_original label + trey features vs baseline on this harness.
+
+## FROZEN FORWARD TEST — Trey's package verified (2026-07-13, branch frozen-forward)
+Trey's frozen_2023-12 package (617,062×211, manifest contract, 4,401 forward bans —
+1,021 in-universe) landed via his Jul 11 email; saved at
+`~/Desktop/Data/preclean/trey/frozen_2023-12/`. Work on branch `frozen-forward`:
+- `labels/validate_frozen.py` (GATE 0): PASSES except **52 parquet columns the manifest
+  doesn't classify** (incl. post_deactivation_paid, excluded_owner_role, our own
+  anomaly_score_v3) — quarantined by construction, none hot solo (max 0.63). Real
+  trainable = 117 (letter's "126" is pre-fence). Solo scan clean (max billing_surprisal 0.645).
+- `labels/train_frozen.py`: GroupKFold OOF on in-time label, forward eval. A (116 cols)
+  fwd ROC ~0.718; B strict no-current_state (91) ~0.713 → current_state ≈ +0.004 only.
+- `labels/network_ab_repro.py`: **Trey's matched edge REPRODUCES independently:
+  structural dROC ~+0.050 (his claim +0.035), CIs clear of zero.** Decomposition:
+  related_party_density alone = ZERO; the edge is entirely shell_score. Survives
+  recency filter (>6mo post-cutoff bans only) and within_2_hops partial-out.
+- OPEN: the unfrozen graph substrate (co-location edges from 2026 addresses) can't be
+  tested from the parquet — ask Trey to rebuild from archived ~2023 NPPES (NBER has
+  monthly editions). Next: calibration + GATE-4 lead diff before any production use.
